@@ -38,9 +38,18 @@ export const initDB = async () => {
             createdAt INTEGER,
             updatedAt INTEGER,
             synced INTEGER DEFAULT 0,
+            ebayItemId TEXT,
+            ebaySku TEXT,
             FOREIGN KEY(boxId) REFERENCES boxes(id)
           );`
         );
+        const itemColumns = db.getAllSync('PRAGMA table_info(items)').map((column) => column.name);
+        if (!itemColumns.includes('ebayItemId')) {
+          db.execSync('ALTER TABLE items ADD COLUMN ebayItemId TEXT');
+        }
+        if (!itemColumns.includes('ebaySku')) {
+          db.execSync('ALTER TABLE items ADD COLUMN ebaySku TEXT');
+        }
       } else if (db && db.transaction) {
         db.transaction((tx) => {
           tx.executeSql(
@@ -64,9 +73,21 @@ export const initDB = async () => {
               imageUri TEXT,
               createdAt INTEGER,
               updatedAt INTEGER,
-              synced INTEGER DEFAULT 0
+              synced INTEGER DEFAULT 0,
+              ebayItemId TEXT,
+              ebaySku TEXT
             );`
           );
+          tx.executeSql('PRAGMA table_info(items)', [], (_, { rows }) => {
+            const names = [];
+            for (let i = 0; i < rows.length; i++) names.push(rows.item(i).name);
+            if (!names.includes('ebayItemId')) {
+              tx.executeSql('ALTER TABLE items ADD COLUMN ebayItemId TEXT');
+            }
+            if (!names.includes('ebaySku')) {
+              tx.executeSql('ALTER TABLE items ADD COLUMN ebaySku TEXT');
+            }
+          });
         });
       }
     }

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Button, TextInput, Modal } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Button, TextInput, Modal, Alert } from 'react-native';
 import { initDB } from '../db/init';
 import { getAllBoxes, addBox } from '../services/inventoryRepo';
+import { importEbayListingsToUnsorted } from '../services/ebayImport';
 
 export default function BoxesScreen({ navigation }) {
   const [boxes, setBoxes] = useState([]);
@@ -9,6 +10,7 @@ export default function BoxesScreen({ navigation }) {
   const [modalVisible, setModalVisible] = useState(false);
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
+  const [importing, setImporting] = useState(false);
 
   const load = async () => {
     try {
@@ -41,6 +43,25 @@ export default function BoxesScreen({ navigation }) {
     }
   };
 
+  const importEbay = async () => {
+    if (importing) return;
+    setImporting(true);
+    try {
+      const result = await importEbayListingsToUnsorted();
+      if (result.total === 0) {
+        Alert.alert('No listings', 'No active eBay listings were found.');
+      } else {
+        const skipped = result.skipped ? ` ${result.skipped} already imported.` : '';
+        Alert.alert('Imported', `${result.imported} item(s) added to "${result.box.name}".${skipped}`);
+      }
+      await load();
+    } catch {
+      Alert.alert('eBay import failed', 'Make sure the eBay proxy is running and reachable.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const renderItem = ({ item }) => (
     <TouchableOpacity
       style={styles.item}
@@ -54,6 +75,11 @@ export default function BoxesScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <Button title="Create Box" onPress={() => setModalVisible(true)} />
+      <Button
+        title={importing ? 'Importing...' : 'Import eBay Listings'}
+        onPress={importEbay}
+        disabled={importing}
+      />
       {loading ? (
         <Text>Loading...</Text>
       ) : boxes.length === 0 ? (

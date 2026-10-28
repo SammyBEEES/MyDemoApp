@@ -110,12 +110,14 @@ export const addItem = async (item) => {
     item.createdAt || ts,
     item.updatedAt || ts,
     0,
+    item.ebayItemId || null,
+    item.ebaySku || null,
   ];
   try {
     if (db.runSync) {
       db.runSync(
-        `INSERT INTO items (id, boxId, name, description, quantity, location, category, imageUri, createdAt, updatedAt, synced)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO items (id, boxId, name, description, quantity, location, category, imageUri, createdAt, updatedAt, synced, ebayItemId, ebaySku)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         values
       );
       return id;
@@ -126,8 +128,8 @@ export const addItem = async (item) => {
   return new Promise((resolve) => {
     db.transaction((tx) => {
       tx.executeSql(
-        `INSERT INTO items (id, boxId, name, description, quantity, location, category, imageUri, createdAt, updatedAt, synced)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO items (id, boxId, name, description, quantity, location, category, imageUri, createdAt, updatedAt, synced, ebayItemId, ebaySku)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         values,
         () => resolve(id),
         () => { resolve(webAddItem({ ...item, id })); return false; }
