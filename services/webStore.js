@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Crypto from 'expo-crypto';
 
@@ -12,19 +13,19 @@ const load = async () => {
       const data = JSON.parse(raw);
       if (!data.boxes) data.boxes = [];
       if (!data.items) data.items = [];
+      if (!data.ebayLinks) data.ebayLinks = [];
       return data;
     }
-    // try migrate old
     const oldRaw = await AsyncStorage.getItem(OLD_KEY);
     if (oldRaw) {
       const oldItems = JSON.parse(oldRaw) || [];
-      const migrated = { boxes: [], items: oldItems };
+      const migrated = { boxes: [], items: oldItems, ebayLinks: [] };
       await AsyncStorage.setItem(KEY, JSON.stringify(migrated));
       return migrated;
     }
-    return { boxes: [], items: [] };
+    return { boxes: [], items: [], ebayLinks: [] };
   } catch {
-    return { boxes: [], items: [] };
+    return { boxes: [], items: [], ebayLinks: [] };
   }
 };
 
@@ -94,6 +95,8 @@ export const webAddItem = async (item) => {
     location: item.location || '',
     category: item.category || '',
     imageUri: item.imageUri || null,
+    ebayItemId: item.ebayItemId || null,
+    ebaySku: item.ebaySku || null,
     createdAt: item.createdAt || ts,
     updatedAt: ts,
     synced: 0,
@@ -124,4 +127,15 @@ export const webDeleteItem = async (id) => {
   const data = await load();
   data.items = (data.items || []).filter((i) => i.id !== id);
   await save(data);
+};
+
+export const webLinkItemToEbay = async (itemId, ebayItemId, ebaySku) => {
+  const data = await load();
+  const items = data.items || [];
+  const idx = items.findIndex((i) => i.id === itemId);
+  if (idx >= 0) {
+    items[idx] = { ...items[idx], ebayItemId, ebaySku: ebaySku || null, updatedAt: now() };
+    data.items = items;
+    await save(data);
+  }
 };

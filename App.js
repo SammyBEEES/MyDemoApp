@@ -4,6 +4,7 @@ import BoxesScreen from './screens/BoxesScreen';
 import BoxItemsScreen from './screens/BoxItemsScreen';
 import AddItemScreen from './screens/AddItemScreen';
 import ItemDetailScreen from './screens/ItemDetailScreen';
+import LinkEbayScreen from './screens/LinkEbayScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -15,6 +16,7 @@ export default function App() {
         <Stack.Screen name="BoxItems" component={BoxItemsScreen} options={{ title: 'Box Items' }} />
         <Stack.Screen name="AddItem" component={AddItemScreen} options={{ title: 'Add Item' }} />
         <Stack.Screen name="ItemDetail" component={ItemDetailScreen} options={{ title: 'Item Details' }} />
+        <Stack.Screen name="LinkEbay" component={LinkEbayScreen} options={{ title: 'Link to eBay' }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

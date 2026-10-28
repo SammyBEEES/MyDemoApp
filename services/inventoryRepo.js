@@ -10,6 +10,7 @@ import {
   webGetItemById,
   webUpdateItem,
   webDeleteItem,
+  webLinkItemToEbay,
 } from './webStore';
 
 const now = () => Date.now();
@@ -156,7 +157,7 @@ export const updateItem = async (id, updates) => {
   const ts = now();
   const fields = [];
   const values = [];
-  const allowed = ['name', 'description', 'quantity', 'location', 'category', 'imageUri', 'boxId', 'synced'];
+  const allowed = ['name', 'description', 'quantity', 'location', 'category', 'imageUri', 'boxId', 'synced', 'ebayItemId', 'ebaySku'];
   for (const key of allowed) {
     if (updates[key] !== undefined) {
       fields.push(`${key} = ?`);
@@ -179,6 +180,64 @@ export const updateItem = async (id, updates) => {
   return new Promise((resolve) => {
     db.transaction((tx) => {
       tx.executeSql(sql, values, () => resolve(), () => { webUpdateItem(id, updates); resolve(); return false; });
+    });
+  });
+};
+
+export const linkItemToEbay = async (itemId, ebayItemId, ebaySku) => {
+  if (Platform.OS === 'web') return webLinkItemToEbay(itemId, ebayItemId, ebaySku);
+  const db = getDB();
+  if (!db) return webLinkItemToEbay(itemId, ebayItemId, ebaySku);
+  const ts = now();
+  try {
+    if (db.runSync) {
+      db.runSync('UPDATE items SET ebayItemId = ?, ebaySku = ?, updatedAt = ? WHERE id = ?', [ebayItemId, ebaySku || null, ts, itemId]);
+      return;
+    }
+  } catch {
+    return webLinkItemToEbay(itemId, ebayItemId, ebaySku);
+  }
+  return new Promise((resolve) => {
+    db.transaction((tx) => {
+      tx.executeSql('UPDATE items SET ebayItemId = ?, ebaySku = ?, updatedAt = ? WHERE id = ?', [ebayItemId, ebaySku || null, ts, itemId], () => resolve(), () => { webLinkItemToEbay(itemId, ebayItemId, ebaySku); resolve(); return false; });
+    });
+  });
+};
+
+export const moveAllItemsFromBox = async (fromBoxId, toBoxId) => {
+  if (!fromBoxId || !toBoxId || fromBoxId === toBoxId) return;
+  if (Platform.OS === 'web') {
+    const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+    const KEY = 'inventory_data_v1';
+    try {
+      const raw = await AsyncStorage.getItem(KEY);
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      const items = data.items || [];
+      const ts = Date.now();
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].boxId === fromBoxId) {
+          items[i].boxId = toBoxId;
+          items[i].updatedAt = ts;
+        }
+      }
+      data.items = items;
+      await AsyncStorage.setItem(KEY, JSON.stringify(data));
+    } catch {}
+    return;
+  }
+  const db = getDB();
+  if (!db) return;
+  const ts = now();
+  try {
+    if (db.runSync) {
+      db.runSync('UPDATE items SET boxId = ?, updatedAt = ? WHERE boxId = ?', [toBoxId, ts, fromBoxId]);
+      return;
+    }
+  } catch {}
+  return new Promise((resolve) => {
+    db.transaction((tx) => {
+      tx.executeSql('UPDATE items SET boxId = ?, updatedAt = ? WHERE boxId = ?', [toBoxId, ts, fromBoxId], () => resolve(), () => { resolve(); return false; });
     });
   });
 };
