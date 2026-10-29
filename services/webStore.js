@@ -94,6 +94,7 @@ export const webAddItem = async (item) => {
     quantity: item.quantity ?? 1,
     location: item.location || '',
     category: item.category || '',
+    barcode: item.barcode || null,
     imageUri: item.imageUri || null,
     ebayItemId: item.ebayItemId || null,
     ebaySku: item.ebaySku || null,

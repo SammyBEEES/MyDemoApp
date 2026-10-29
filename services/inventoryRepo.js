@@ -106,6 +106,7 @@ export const addItem = async (item) => {
     item.quantity ?? 1,
     item.location || '',
     item.category || '',
+    item.barcode || null,
     item.imageUri || null,
     item.createdAt || ts,
     item.updatedAt || ts,
@@ -116,8 +117,8 @@ export const addItem = async (item) => {
   try {
     if (db.runSync) {
       db.runSync(
-        `INSERT INTO items (id, boxId, name, description, quantity, location, category, imageUri, createdAt, updatedAt, synced, ebayItemId, ebaySku)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO items (id, boxId, name, description, quantity, location, category, barcode, imageUri, createdAt, updatedAt, synced, ebayItemId, ebaySku)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         values
       );
       return id;
@@ -128,8 +129,8 @@ export const addItem = async (item) => {
   return new Promise((resolve) => {
     db.transaction((tx) => {
       tx.executeSql(
-        `INSERT INTO items (id, boxId, name, description, quantity, location, category, imageUri, createdAt, updatedAt, synced, ebayItemId, ebaySku)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO items (id, boxId, name, description, quantity, location, category, barcode, imageUri, createdAt, updatedAt, synced, ebayItemId, ebaySku)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         values,
         () => resolve(id),
         () => { resolve(webAddItem({ ...item, id })); return false; }
@@ -159,7 +160,7 @@ export const updateItem = async (id, updates) => {
   const ts = now();
   const fields = [];
   const values = [];
-  const allowed = ['name', 'description', 'quantity', 'location', 'category', 'imageUri', 'boxId', 'synced', 'ebayItemId', 'ebaySku'];
+  const allowed = ['name', 'description', 'quantity', 'location', 'category', 'barcode', 'imageUri', 'boxId', 'synced', 'ebayItemId', 'ebaySku'];
   for (const key of allowed) {
     if (updates[key] !== undefined) {
       fields.push(`${key} = ?`);

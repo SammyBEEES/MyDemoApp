@@ -13,6 +13,7 @@ export default function ItemDetailScreen({ route, navigation }) {
       <Text>Quantity: {item.quantity}</Text>
       <Text>Location: {item.location || '-'}</Text>
       <Text>Category: {item.category || '-'}</Text>
+      <Text>Barcode: {item.barcode || '-'}</Text>
       {item.ebayItemId ? <Text style={styles.linked}>Linked to eBay: {item.ebayItemId}</Text> : null}
       <Button title="Link to eBay Listing" onPress={() => navigation.navigate('LinkEbay', { item })} />
       <Button title="Back" onPress={() => navigation.goBack()} />

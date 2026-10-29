@@ -34,6 +34,7 @@ export const initDB = async () => {
             quantity INTEGER DEFAULT 1,
             location TEXT,
             category TEXT,
+            barcode TEXT,
             imageUri TEXT,
             createdAt INTEGER,
             updatedAt INTEGER,
@@ -49,6 +50,9 @@ export const initDB = async () => {
         }
         if (!itemColumns.includes('ebaySku')) {
           db.execSync('ALTER TABLE items ADD COLUMN ebaySku TEXT');
+        }
+        if (!itemColumns.includes('barcode')) {
+          db.execSync('ALTER TABLE items ADD COLUMN barcode TEXT');
         }
       } else if (db && db.transaction) {
         db.transaction((tx) => {
@@ -70,6 +74,7 @@ export const initDB = async () => {
               quantity INTEGER DEFAULT 1,
               location TEXT,
               category TEXT,
+              barcode TEXT,
               imageUri TEXT,
               createdAt INTEGER,
               updatedAt INTEGER,
@@ -86,6 +91,9 @@ export const initDB = async () => {
             }
             if (!names.includes('ebaySku')) {
               tx.executeSql('ALTER TABLE items ADD COLUMN ebaySku TEXT');
+            }
+            if (!names.includes('barcode')) {
+              tx.executeSql('ALTER TABLE items ADD COLUMN barcode TEXT');
             }
           });
         });
