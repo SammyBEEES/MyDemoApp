@@ -1,115 +1,96 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Image, Button, StyleSheet, Alert } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { View, Text, FlatList, Image, Button, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { initDB } from '../db/init';
-import { getItemsByShippingStatus } from '../services/inventoryRepo';
-import { importEbayOrders } from '../services/ebayImport';
+import { useFocusEffect } from '@react-navigation/native';
+import { getEbayOrders } from '../services/ebay';
 import { useTheme } from '../theme/ThemeProvider';
 
-const currentYear = () => new Date().getFullYear();
-
-export default function CompletedOrdersScreen({ navigation }) {
+export default function CompletedOrdersScreen() {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(colors), [colors]);
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [importing, setImporting] = useState(false);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const load = async () => {
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
     try {
-      await initDB();
-      const allDelivered = await getItemsByShippingStatus('delivered');
-      const thisYear = currentYear();
-      const completedThisYear = (allDelivered || []).filter((item) => {
-        const createdAt = item.createdAt || 0;
-        return new Date(createdAt).getFullYear() === thisYear;
-      });
-      setItems(completedThisYear);
+      const result = await getEbayOrders();
+      setOrders(result.orders || []);
     } catch (e) {
-      console.log(e);
+      setError(e.message || 'Failed to load eBay orders.');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const importFromEbay = async () => {
-    if (importing) return;
-    setImporting(true);
-    try {
-      const result = await importEbayOrders();
-      Alert.alert(
-        'Orders imported',
-        `${result.imported} order(s) imported from eBay.${result.skipped ? ` ${result.skipped} already existed.` : ''}`
-      );
-      load();
-    } catch (e) {
-      Alert.alert('Error', `Failed to import from eBay: ${e.message}`);
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  useEffect(() => {
-    const unsub = navigation.addListener('focus', load);
+  useFocusEffect(useCallback(() => {
     load();
-    return unsub;
-  }, [navigation]);
+  }, [load]));
+
+  const formatPrice = (price, currency) => {
+    const amount = Number(price);
+    if (!Number.isFinite(amount)) return 'Price unavailable';
+    if (currency) {
+      try {
+        return new Intl.NumberFormat(undefined, {
+          style: 'currency',
+          currency,
+        }).format(amount);
+      } catch {}
+    }
+    return amount.toFixed(2);
+  };
+
+  const formatDate = (date) => {
+    if (!date) return 'Date unavailable';
+    const parsed = new Date(date);
+    return Number.isNaN(parsed.getTime()) ? 'Date unavailable' : parsed.toLocaleDateString();
+  };
 
   const renderItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.item}
-      activeOpacity={0.75}
-      onPress={() => navigation.navigate('ItemDetail', { item })}
-    >
-      {item.imageUri ? (
-        <Image source={{ uri: item.imageUri }} style={styles.thumb} />
+    <View style={styles.item}>
+      {item.picture ? (
+        <Image source={{ uri: item.picture }} style={styles.thumb} />
       ) : (
         <View style={styles.thumbPlaceholder} />
       )}
       <View style={styles.info}>
-        <Text style={styles.name}>{item.name}</Text>
-        <Text style={styles.meta}>
-          Qty: {item.quantity} {item.location ? `• ${item.location}` : ''}
-        </Text>
-        <Text style={styles.meta}>
-          {new Date(item.createdAt || 0).toLocaleDateString()}
-        </Text>
+        <Text style={styles.name}>{item.title || 'Untitled eBay item'}</Text>
+        <Text style={styles.meta}>Buyer: {item.buyer || 'Not provided'}</Text>
+        <Text style={styles.meta}>Order: {item.orderId || 'Unavailable'}</Text>
+        <Text style={styles.meta}>Qty: {item.quantity} | {formatDate(item.createdDate)}</Text>
+        <Text style={styles.meta}>Status: {item.shippingStatus || 'Unknown'}</Text>
+        <Text style={styles.price}>{formatPrice(item.price, item.currency)}</Text>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Completed Orders ({currentYear()})</Text>
-        <Text style={styles.subtitle}>{items.length} item(s) delivered</Text>
-        <Button
-          title={importing ? 'Importing...' : 'Import from eBay'}
-          onPress={importFromEbay}
-          disabled={importing}
-        />
+        <Text style={styles.subtitle}>{orders.length} order line(s)</Text>
+        <Button title={loading ? 'Loading...' : 'Refresh Orders'} onPress={load} disabled={loading} />
       </View>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
       {loading ? (
         <Text style={styles.message}>Loading...</Text>
-      ) : items.length === 0 ? (
+      ) : orders.length === 0 && !error ? (
         <Text style={styles.empty}>
-          No completed orders this year. Mark an item as “Delivered” on its
-          detail screen to see it here.
+          No eBay sales orders were returned. Confirm the eBay proxy is running
+          and your seller token is configured. eBay returns up to 90 days of
+          order history here.
         </Text>
       ) : (
         <FlatList
-          data={items}
-          keyExtractor={(item) => item.id}
+          data={orders}
+          keyExtractor={(item, index) => `${item.orderId || 'order'}-${item.transactionId || index}`}
           renderItem={renderItem}
           contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}
         />
       )}
-      <Button
-        title="Back to Boxes"
-        onPress={() => navigation.goBack()}
-        style={styles.backButton}
-      />
     </View>
   );
 }
@@ -118,7 +99,6 @@ const createStyles = (colors) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     header: { paddingHorizontal: 16, paddingTop: 12, gap: 4 },
-    title: { fontSize: 22, fontWeight: '700', color: colors.text },
     subtitle: { color: colors.muted, fontSize: 15 },
     list: { paddingHorizontal: 16, paddingTop: 12 },
     item: {
@@ -147,7 +127,8 @@ const createStyles = (colors) =>
     info: { flex: 1 },
     name: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 2 },
     meta: { color: colors.muted, fontSize: 14 },
+    price: { color: colors.primary, fontSize: 15, fontWeight: '700', marginTop: 4 },
     message: { color: colors.muted, marginTop: 20, textAlign: 'center' },
+    error: { textAlign: 'center', margin: 16, color: colors.error || '#b00020' },
     empty: { textAlign: 'center', marginTop: 24, marginHorizontal: 24, color: colors.muted },
-    backButton: { margin: 16 },
   });

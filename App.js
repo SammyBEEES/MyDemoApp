@@ -67,7 +67,7 @@ function AppNavigator() {
           />
           <Stack.Screen name="BoxItems" component={BoxItemsScreen} options={{ title: 'Box Items' }} />
           <Stack.Screen name="AddItem" component={AddItemScreen} options={{ title: 'Add Item' }} />
-          <Stack.Screen name="CompletedOrders" component={CompletedOrdersScreen} options={{ title: 'Completed Orders' }} />
+          <Stack.Screen name="CompletedOrders" component={CompletedOrdersScreen} options={{ title: 'eBay Sales Orders' }} />
           <Stack.Screen name="Purchases" component={PurchasesScreen} options={{ title: 'Purchases' }} />
           <Stack.Screen name="ItemDetail" component={ItemDetailScreen} options={{ title: 'Item Details' }} />
           <Stack.Screen name="LinkEbay" component={LinkEbayScreen} options={{ title: 'Link to eBay' }} />

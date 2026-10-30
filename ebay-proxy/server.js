@@ -163,50 +163,78 @@ app.get('/api/ebay/orders', async (req, res) => {
     if (!TOKEN) {
       return res.status(400).json({ error: 'Missing EBAY_AUTH_TOKEN' });
     }
-    const xml = `<?xml version="1.0" encoding="utf-8"?>
+    const orders = [];
+    let pageNumber = 1;
+    let hasMoreOrders = true;
+    const requestTime = Date.now();
+    const createTimeTo = new Date(requestTime - 2 * 60 * 1000).toISOString();
+    const createTimeFrom = new Date(requestTime - 90 * 24 * 60 * 60 * 1000).toISOString();
+
+    while (hasMoreOrders) {
+      const xml = `<?xml version="1.0" encoding="utf-8"?>
 <GetOrdersRequest xmlns="urn:ebay:apis:eBLBaseComponents">
   <RequesterCredentials>
     <eBayAuthToken>${TOKEN}</eBayAuthToken>
   </RequesterCredentials>
+  <CreateTimeFrom>${createTimeFrom}</CreateTimeFrom>
+  <CreateTimeTo>${createTimeTo}</CreateTimeTo>
+  <OrderRole>Seller</OrderRole>
   <OrderStatus>Completed</OrderStatus>
+  <SortingOrder>Descending</SortingOrder>
   <Pagination>
     <EntriesPerPage>200</EntriesPerPage>
-    <PageNumber>1</PageNumber>
+    <PageNumber>${pageNumber}</PageNumber>
   </Pagination>
   <Version>967</Version>
 </GetOrdersRequest>`;
-    const resp = await axios.post(getEndpoint(), xml, { headers: buildHeaders('GetOrders') });
-    const parsed = await parseStringPromise(resp.data, { explicitArray: false, ignoreAttrs: true });
-    const ordersResp = parsed?.GetOrdersResponse;
-    const orderArray = ordersResp?.OrderArray?.Order;
-    if (!orderArray) return res.json({ orders: [] });
-    const list = Array.isArray(orderArray) ? orderArray : [orderArray];
+      const resp = await axios.post(getEndpoint(), xml, { headers: buildHeaders('GetOrders') });
+      const parsed = await parseStringPromise(resp.data, { explicitArray: false });
+      const ordersResp = parsed?.GetOrdersResponse;
 
-    // Flatten transactions across all orders
-    const transactions = [];
-    for (const order of list) {
-      const txArray = order.TransactionArray?.Transaction;
-      if (!txArray) continue;
-      const txs = Array.isArray(txArray) ? txArray : [txArray];
-      for (const tx of txs) {
-        transactions.push({
-          orderId: order.OrderID,
-          transactionId: tx.TransactionID,
-          itemId: tx.Item?.ItemID,
-          title: tx.Item?.Title,
-          sku: tx.Item?.SKU || null,
-          quantity: Number(tx.QuantityPurchased) || 1,
-          price: tx.TransactionPrice?._ || tx.TransactionPrice || null,
-          buyer: tx.Buyer?.UserID || null,
-          createdDate: tx.CreatedTime || null,
-          shippingStatus: tx.ShippingDetails?.ShippedBySellerTime ? 'shipped' : 'pending',
-          picture: upscalePicture(tx.Item?.PictureDetails?.GalleryURL),
-        });
+      if (!ordersResp || ordersResp.Ack === 'Failure') {
+        const apiErrors = ordersResp?.Errors;
+        const errors = Array.isArray(apiErrors) ? apiErrors : apiErrors ? [apiErrors] : [];
+        const message = errors
+          .map((error) => error.LongMessage || error.ShortMessage)
+          .filter(Boolean)
+          .join('; ');
+        throw new Error(message || `eBay order request failed (${ordersResp?.Ack || 'no response'})`);
       }
+
+      const orderArray = ordersResp.OrderArray?.Order;
+      const pageOrders = orderArray ? (Array.isArray(orderArray) ? orderArray : [orderArray]) : [];
+      for (const order of pageOrders) {
+        const txArray = order.TransactionArray?.Transaction;
+        const transactions = txArray ? (Array.isArray(txArray) ? txArray : [txArray]) : [];
+        for (const tx of transactions) {
+          const transactionPrice = tx.TransactionPrice;
+          orders.push({
+            orderId: order.OrderID,
+            transactionId: tx.TransactionID,
+            itemId: tx.Item?.ItemID,
+            title: tx.Item?.Title,
+            sku: tx.Item?.SKU || null,
+            quantity: Number(tx.QuantityPurchased) || 1,
+            price: transactionPrice?._ || transactionPrice || null,
+            currency: transactionPrice?.$?.currencyID || null,
+            buyer: order.Buyer?.UserID || tx.Buyer?.UserID || null,
+            createdDate: order.CreatedTime || tx.CreatedTime || null,
+            shippingStatus: order.ShippedTime
+              ? 'Shipped'
+              : order.PaidTime
+                ? 'Paid'
+                : 'Awaiting payment',
+            picture: upscalePicture(tx.Item?.PictureDetails?.GalleryURL),
+          });
+        }
+      }
+
+      hasMoreOrders = String(ordersResp.HasMoreOrders).toLowerCase() === 'true';
+      pageNumber++;
     }
-    res.json({ orders: transactions });
+    res.json({ orders });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(502).json({ error: e.message || 'Failed to fetch eBay orders' });
   }
 });
 

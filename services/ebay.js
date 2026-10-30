@@ -37,7 +37,20 @@ export const reviseEbayInventory = async (itemId, quantity) => {
 };
 
 export const getEbayOrders = async () => {
-  const res = await fetch(`${EBAY_PROXY_URL}/api/ebay/orders`);
-  if (!res.ok) throw new Error('Failed to fetch eBay orders');
-  return res.json();
+  const url = `${EBAY_PROXY_URL}/api/ebay/orders`;
+  const res = await fetch(url);
+  const contentType = res.headers.get('content-type') || 'unknown content type';
+  const body = await res.text();
+  let data;
+
+  try {
+    data = JSON.parse(body);
+  } catch {
+    throw new Error(
+      `The eBay proxy at ${url} returned HTTP ${res.status} with ${contentType}, not JSON. Check that the proxy is running at this address.`
+    );
+  }
+
+  if (!res.ok) throw new Error(data.error || `eBay proxy request failed (HTTP ${res.status})`);
+  return data;
 };

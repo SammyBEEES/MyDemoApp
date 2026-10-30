@@ -94,7 +94,7 @@ export default function BoxesScreen({ navigation }) {
           </View>
           <View style={styles.actionButton}>
             <Button
-              title="Completed Orders"
+              title="eBay Sales Orders"
               onPress={() => navigation.navigate('CompletedOrders')}
             />
           </View>
