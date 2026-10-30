@@ -35,3 +35,9 @@ export const reviseEbayInventory = async (itemId, quantity) => {
   if (!res.ok) throw new Error('Failed to revise');
   return res.json();
 };
+
+export const getEbayOrders = async () => {
+  const res = await fetch(`${EBAY_PROXY_URL}/api/ebay/orders`);
+  if (!res.ok) throw new Error('Failed to fetch eBay orders');
+  return res.json();
+};

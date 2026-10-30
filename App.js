@@ -12,6 +12,8 @@ import BoxesScreen from './screens/BoxesScreen';
 import BoxItemsScreen from './screens/BoxItemsScreen';
 import AddItemScreen from './screens/AddItemScreen';
 import ItemDetailScreen from './screens/ItemDetailScreen';
+import CompletedOrdersScreen from './screens/CompletedOrdersScreen';
+import PurchasesScreen from './screens/PurchasesScreen';
 import LinkEbayScreen from './screens/LinkEbayScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import { ThemeProvider, useTheme } from './theme/ThemeProvider';
@@ -65,6 +67,8 @@ function AppNavigator() {
           />
           <Stack.Screen name="BoxItems" component={BoxItemsScreen} options={{ title: 'Box Items' }} />
           <Stack.Screen name="AddItem" component={AddItemScreen} options={{ title: 'Add Item' }} />
+          <Stack.Screen name="CompletedOrders" component={CompletedOrdersScreen} options={{ title: 'Completed Orders' }} />
+          <Stack.Screen name="Purchases" component={PurchasesScreen} options={{ title: 'Purchases' }} />
           <Stack.Screen name="ItemDetail" component={ItemDetailScreen} options={{ title: 'Item Details' }} />
           <Stack.Screen name="LinkEbay" component={LinkEbayScreen} options={{ title: 'Link to eBay' }} />
           <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />

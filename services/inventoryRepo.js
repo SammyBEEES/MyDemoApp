@@ -5,12 +5,16 @@ import {
   webAddBox,
   webGetBoxById,
   webGetItemsByBoxId,
+  webGetItemsByShippingStatus,
   webGetAllItems,
   webAddItem,
   webGetItemById,
   webUpdateItem,
   webDeleteItem,
   webLinkItemToEbay,
+  webAddPurchase,
+  webGetPurchases,
+  webGetPurchasesByItemId,
 } from './webStore';
 
 const now = () => Date.now();
@@ -78,6 +82,20 @@ export const getItemsByBoxId = async (boxId) => {
   });
 };
 
+export const getItemsByShippingStatus = async (status) => {
+  if (Platform.OS === 'web') return webGetItemsByShippingStatus(status);
+  const db = getDB();
+  if (!db) return webGetItemsByShippingStatus(status);
+  try {
+    if (db.getAllSync) return db.getAllSync('SELECT * FROM items WHERE shippingStatus = ? ORDER BY createdAt DESC', [status]);
+  } catch {}
+  return new Promise((resolve) => {
+    db.transaction((tx) => {
+      tx.executeSql('SELECT * FROM items WHERE shippingStatus = ? ORDER BY createdAt DESC', [status], (_, { rows }) => resolve(rows._array || []), () => { resolve([]); return false; });
+    });
+  });
+};
+
 export const getAllItems = async () => {
   if (Platform.OS === 'web') return webGetAllItems();
   const db = getDB();
@@ -108,6 +126,7 @@ export const addItem = async (item) => {
     item.category || '',
     item.barcode || null,
     item.imageUri || null,
+    item.shippingStatus || 'pending',
     item.createdAt || ts,
     item.updatedAt || ts,
     0,
@@ -117,8 +136,8 @@ export const addItem = async (item) => {
   try {
     if (db.runSync) {
       db.runSync(
-        `INSERT INTO items (id, boxId, name, description, quantity, location, category, barcode, imageUri, createdAt, updatedAt, synced, ebayItemId, ebaySku)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO items (id, boxId, name, description, quantity, location, category, barcode, imageUri, shippingStatus, createdAt, updatedAt, synced, ebayItemId, ebaySku)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         values
       );
       return id;
@@ -129,8 +148,8 @@ export const addItem = async (item) => {
   return new Promise((resolve) => {
     db.transaction((tx) => {
       tx.executeSql(
-        `INSERT INTO items (id, boxId, name, description, quantity, location, category, barcode, imageUri, createdAt, updatedAt, synced, ebayItemId, ebaySku)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO items (id, boxId, name, description, quantity, location, category, barcode, imageUri, shippingStatus, createdAt, updatedAt, synced, ebayItemId, ebaySku)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         values,
         () => resolve(id),
         () => { resolve(webAddItem({ ...item, id })); return false; }
@@ -160,7 +179,7 @@ export const updateItem = async (id, updates) => {
   const ts = now();
   const fields = [];
   const values = [];
-  const allowed = ['name', 'description', 'quantity', 'location', 'category', 'barcode', 'imageUri', 'boxId', 'synced', 'ebayItemId', 'ebaySku'];
+  const allowed = ['name', 'description', 'quantity', 'location', 'category', 'barcode', 'imageUri', 'boxId', 'synced', 'ebayItemId', 'ebaySku', 'shippingStatus'];
   for (const key of allowed) {
     if (updates[key] !== undefined) {
       fields.push(`${key} = ?`);
@@ -260,6 +279,100 @@ export const deleteItem = async (id) => {
   return new Promise((resolve) => {
     db.transaction((tx) => {
       tx.executeSql('DELETE FROM items WHERE id = ?', [id], () => resolve(), () => { webDeleteItem(id); resolve(); return false; });
+    });
+  });
+};
+
+export const addPurchase = async (purchase) => {
+  if (Platform.OS === 'web') return webAddPurchase(purchase);
+  const db = getDB();
+  if (!db) return webAddPurchase(purchase);
+  const id = purchase.id || (await generateId());
+  const ts = now();
+  const values = [
+    id,
+    purchase.itemId,
+    purchase.cost ?? 0,
+    purchase.quantity ?? 1,
+    purchase.purchaseDate || ts,
+    purchase.supplier || null,
+    purchase.notes || null,
+    ts,
+  ];
+  try {
+    if (db.runSync) {
+      db.runSync(
+        `INSERT INTO purchases (id, itemId, cost, quantity, purchaseDate, supplier, notes, createdAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        values
+      );
+      return id;
+    }
+  } catch {
+    return webAddPurchase({ ...purchase, id });
+  }
+  return new Promise((resolve) => {
+    db.transaction((tx) => {
+      tx.executeSql(
+        `INSERT INTO purchases (id, itemId, cost, quantity, purchaseDate, supplier, notes, createdAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        values,
+        () => resolve(id),
+        () => { resolve(webAddPurchase({ ...purchase, id })); return false; }
+      );
+    });
+  });
+};
+
+export const getPurchases = async () => {
+  if (Platform.OS === 'web') return webGetPurchases();
+  const db = getDB();
+  if (!db) return webGetPurchases();
+  try {
+    if (db.getAllSync) {
+      return db.getAllSync(
+        `SELECT p.*, i.name AS itemName, i.boxId AS itemBoxId
+         FROM purchases p
+         LEFT JOIN items i ON p.itemId = i.id
+         ORDER BY p.purchaseDate DESC, p.createdAt DESC`
+      );
+    }
+  } catch {}
+  return new Promise((resolve) => {
+    db.transaction((tx) => {
+      tx.executeSql(
+        `SELECT p.*, i.name AS itemName, i.boxId AS itemBoxId
+         FROM purchases p
+         LEFT JOIN items i ON p.itemId = i.id
+         ORDER BY p.purchaseDate DESC, p.createdAt DESC`,
+        [],
+        (_, { rows }) => resolve(rows._array || []),
+        () => { resolve([]); return false; }
+      );
+    });
+  });
+};
+
+export const getPurchasesByItemId = async (itemId) => {
+  if (Platform.OS === 'web') return webGetPurchasesByItemId(itemId);
+  const db = getDB();
+  if (!db) return webGetPurchasesByItemId(itemId);
+  try {
+    if (db.getAllSync) {
+      return db.getAllSync(
+        `SELECT * FROM purchases WHERE itemId = ? ORDER BY purchaseDate DESC, createdAt DESC`,
+        [itemId]
+      );
+    }
+  } catch {}
+  return new Promise((resolve) => {
+    db.transaction((tx) => {
+      tx.executeSql(
+        `SELECT * FROM purchases WHERE itemId = ? ORDER BY purchaseDate DESC, createdAt DESC`,
+        [itemId],
+        (_, { rows }) => resolve(rows._array || []),
+        () => { resolve([]); return false; }
+      );
     });
   });
 };

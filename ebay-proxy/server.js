@@ -158,6 +158,58 @@ app.get('/api/ebay/item/:itemId', async (req, res) => {
   }
 });
 
+app.get('/api/ebay/orders', async (req, res) => {
+  try {
+    if (!TOKEN) {
+      return res.status(400).json({ error: 'Missing EBAY_AUTH_TOKEN' });
+    }
+    const xml = `<?xml version="1.0" encoding="utf-8"?>
+<GetOrdersRequest xmlns="urn:ebay:apis:eBLBaseComponents">
+  <RequesterCredentials>
+    <eBayAuthToken>${TOKEN}</eBayAuthToken>
+  </RequesterCredentials>
+  <OrderStatus>Completed</OrderStatus>
+  <Pagination>
+    <EntriesPerPage>200</EntriesPerPage>
+    <PageNumber>1</PageNumber>
+  </Pagination>
+  <Version>967</Version>
+</GetOrdersRequest>`;
+    const resp = await axios.post(getEndpoint(), xml, { headers: buildHeaders('GetOrders') });
+    const parsed = await parseStringPromise(resp.data, { explicitArray: false, ignoreAttrs: true });
+    const ordersResp = parsed?.GetOrdersResponse;
+    const orderArray = ordersResp?.OrderArray?.Order;
+    if (!orderArray) return res.json({ orders: [] });
+    const list = Array.isArray(orderArray) ? orderArray : [orderArray];
+
+    // Flatten transactions across all orders
+    const transactions = [];
+    for (const order of list) {
+      const txArray = order.TransactionArray?.Transaction;
+      if (!txArray) continue;
+      const txs = Array.isArray(txArray) ? txArray : [txArray];
+      for (const tx of txs) {
+        transactions.push({
+          orderId: order.OrderID,
+          transactionId: tx.TransactionID,
+          itemId: tx.Item?.ItemID,
+          title: tx.Item?.Title,
+          sku: tx.Item?.SKU || null,
+          quantity: Number(tx.QuantityPurchased) || 1,
+          price: tx.TransactionPrice?._ || tx.TransactionPrice || null,
+          buyer: tx.Buyer?.UserID || null,
+          createdDate: tx.CreatedTime || null,
+          shippingStatus: tx.ShippingDetails?.ShippedBySellerTime ? 'shipped' : 'pending',
+          picture: upscalePicture(tx.Item?.PictureDetails?.GalleryURL),
+        });
+      }
+    }
+    res.json({ orders: transactions });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 const buildReviseInventoryStatusXML = (itemId, quantity) => {
   const builder = new Builder({ headless: true, rootName: 'ReviseInventoryStatusRequest' });
   const obj = {

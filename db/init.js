@@ -41,7 +41,21 @@ export const initDB = async () => {
             synced INTEGER DEFAULT 0,
             ebayItemId TEXT,
             ebaySku TEXT,
+            shippingStatus TEXT DEFAULT 'pending',
             FOREIGN KEY(boxId) REFERENCES boxes(id)
+          );`
+        );
+        db.execSync(
+          `CREATE TABLE IF NOT EXISTS purchases (
+            id TEXT PRIMARY KEY NOT NULL,
+            itemId TEXT NOT NULL,
+            cost REAL NOT NULL DEFAULT 0,
+            quantity INTEGER DEFAULT 1,
+            purchaseDate INTEGER,
+            supplier TEXT,
+            notes TEXT,
+            createdAt INTEGER,
+            FOREIGN KEY(itemId) REFERENCES items(id)
           );`
         );
         const itemColumns = db.getAllSync('PRAGMA table_info(items)').map((column) => column.name);
@@ -53,6 +67,9 @@ export const initDB = async () => {
         }
         if (!itemColumns.includes('barcode')) {
           db.execSync('ALTER TABLE items ADD COLUMN barcode TEXT');
+        }
+        if (!itemColumns.includes('shippingStatus')) {
+          db.execSync("ALTER TABLE items ADD COLUMN shippingStatus TEXT DEFAULT 'pending'");
         }
       } else if (db && db.transaction) {
         db.transaction((tx) => {
@@ -80,7 +97,21 @@ export const initDB = async () => {
               updatedAt INTEGER,
               synced INTEGER DEFAULT 0,
               ebayItemId TEXT,
-              ebaySku TEXT
+              ebaySku TEXT,
+              shippingStatus TEXT DEFAULT 'pending'
+            );`
+          );
+          tx.executeSql(
+            `CREATE TABLE IF NOT EXISTS purchases (
+              id TEXT PRIMARY KEY NOT NULL,
+              itemId TEXT NOT NULL,
+              cost REAL NOT NULL DEFAULT 0,
+              quantity INTEGER DEFAULT 1,
+              purchaseDate INTEGER,
+              supplier TEXT,
+              notes TEXT,
+              createdAt INTEGER,
+              FOREIGN KEY(itemId) REFERENCES items(id)
             );`
           );
           tx.executeSql('PRAGMA table_info(items)', [], (_, { rows }) => {
@@ -94,6 +125,9 @@ export const initDB = async () => {
             }
             if (!names.includes('barcode')) {
               tx.executeSql('ALTER TABLE items ADD COLUMN barcode TEXT');
+            }
+            if (!names.includes('shippingStatus')) {
+              tx.executeSql("ALTER TABLE items ADD COLUMN shippingStatus TEXT DEFAULT 'pending'");
             }
           });
         });

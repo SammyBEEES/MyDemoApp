@@ -14,18 +14,19 @@ const load = async () => {
       if (!data.boxes) data.boxes = [];
       if (!data.items) data.items = [];
       if (!data.ebayLinks) data.ebayLinks = [];
+      if (!data.purchases) data.purchases = [];
       return data;
     }
     const oldRaw = await AsyncStorage.getItem(OLD_KEY);
     if (oldRaw) {
       const oldItems = JSON.parse(oldRaw) || [];
-      const migrated = { boxes: [], items: oldItems, ebayLinks: [] };
+      const migrated = { boxes: [], items: oldItems, ebayLinks: [], purchases: [] };
       await AsyncStorage.setItem(KEY, JSON.stringify(migrated));
       return migrated;
     }
-    return { boxes: [], items: [], ebayLinks: [] };
+    return { boxes: [], items: [], ebayLinks: [], purchases: [] };
   } catch {
-    return { boxes: [], items: [], ebayLinks: [] };
+    return { boxes: [], items: [], ebayLinks: [], purchases: [] };
   }
 };
 
@@ -76,6 +77,12 @@ export const webGetItemsByBoxId = async (boxId) => {
   return [...items].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 };
 
+export const webGetItemsByShippingStatus = async (status) => {
+  const data = await load();
+  const items = (data.items || []).filter((i) => i.shippingStatus === status);
+  return [...items].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+};
+
 export const webGetAllItems = async () => {
   const data = await load();
   return [...(data.items || [])].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -98,6 +105,7 @@ export const webAddItem = async (item) => {
     imageUri: item.imageUri || null,
     ebayItemId: item.ebayItemId || null,
     ebaySku: item.ebaySku || null,
+    shippingStatus: item.shippingStatus || 'pending',
     createdAt: item.createdAt || ts,
     updatedAt: ts,
     synced: 0,
@@ -139,4 +147,53 @@ export const webLinkItemToEbay = async (itemId, ebayItemId, ebaySku) => {
     data.items = items;
     await save(data);
   }
+};
+
+export const webAddPurchase = async (purchase) => {
+  const data = await load();
+  let id = purchase.id;
+  if (!id) {
+    try {
+      id = await Crypto.randomUUID();
+    } catch {
+      id = Math.random().toString(36).slice(2) + Date.now().toString(36);
+    }
+  }
+  const ts = now();
+  const newPurchase = {
+    id,
+    itemId: purchase.itemId,
+    cost: purchase.cost ?? 0,
+    quantity: purchase.quantity ?? 1,
+    purchaseDate: purchase.purchaseDate || ts,
+    supplier: purchase.supplier || null,
+    notes: purchase.notes || null,
+    createdAt: ts,
+  };
+  data.purchases = data.purchases || [];
+  data.purchases.push(newPurchase);
+  await save(data);
+  return id;
+};
+
+export const webGetPurchases = async () => {
+  const data = await load();
+  const purchases = (data.purchases || []).sort(
+    (a, b) => (b.purchaseDate || 0) - (a.purchaseDate || 0)
+  );
+  return purchases.map((p) => {
+    const item = (data.items || []).find((i) => i.id === p.itemId);
+    return {
+      ...p,
+      itemName: item?.name || null,
+      itemBoxId: item?.boxId || null,
+    };
+  });
+};
+
+export const webGetPurchasesByItemId = async (itemId) => {
+  const data = await load();
+  return (data.purchases || [])
+    .filter((p) => p.itemId === itemId)
+    .sort((a, b) => (b.purchaseDate || 0) - (a.purchaseDate || 0));
 };

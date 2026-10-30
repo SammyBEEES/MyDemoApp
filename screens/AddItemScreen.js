@@ -3,7 +3,7 @@ import { View, Text, TextInput, Button, Image, ScrollView, StyleSheet, Alert } f
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { addItem } from '../services/inventoryRepo';
+import { addItem, addPurchase } from '../services/inventoryRepo';
 import { lookupProduct } from '../services/barcodeLookup';
 import BarcodeScanner from '../components/BarcodeScanner';
 import { useTheme } from '../theme/ThemeProvider';
@@ -23,6 +23,19 @@ export default function AddItemScreen({ route, navigation }) {
   const [scannerVisible, setScannerVisible] = useState(false);
   const [lookingUp, setLookingUp] = useState(false);
   const [lookupStatus, setLookupStatus] = useState('');
+  const [shippingStatus, setShippingStatus] = useState('pending');
+  const [purchaseCost, setPurchaseCost] = useState('');
+  const [purchaseQuantity, setPurchaseQuantity] = useState('1');
+  const [supplier, setSupplier] = useState('');
+  const [purchaseDate, setPurchaseDate] = useState('');
+  const [purchaseNotes, setPurchaseNotes] = useState('');
+
+  const SHIPPING_STATUSES = [
+    { value: 'pending', label: 'Pending' },
+    { value: 'ordered', label: 'Ordered' },
+    { value: 'shipped', label: 'Shipped' },
+    { value: 'delivered', label: 'Delivered' },
+  ];
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -107,13 +120,13 @@ export default function AddItemScreen({ route, navigation }) {
     fillFromBarcode(code);
   };
 
-  const save = async () => {
+  const save = async (stay = false) => {
     if (!name.trim()) {
       Alert.alert('Missing name', 'Please enter a name');
       return;
     }
     try {
-      await addItem({
+      const itemId = await addItem({
         boxId,
         name: name.trim(),
         description: description.trim(),
@@ -122,11 +135,46 @@ export default function AddItemScreen({ route, navigation }) {
         category: category.trim(),
         barcode: barcode.trim(),
         imageUri,
+        shippingStatus,
       });
+
+      const cost = parseFloat(purchaseCost);
+      if (!isNaN(cost) && cost > 0) {
+        await addPurchase({
+          itemId,
+          cost,
+          quantity: parseInt(purchaseQuantity) || 1,
+          purchaseDate: purchaseDate || Date.now(),
+          supplier: supplier.trim() || null,
+          notes: purchaseNotes.trim() || null,
+        });
+      }
+
+      if (stay) {
+        resetForm();
+        return;
+      }
       navigation.goBack();
     } catch (e) {
       Alert.alert('Error', 'Failed to save item');
     }
+  };
+
+  const resetForm = () => {
+    setName('');
+    setDescription('');
+    setQuantity('1');
+    setLocation('');
+    setCategory('');
+    setBarcode('');
+    setImageUri(null);
+    setShippingStatus('pending');
+    setLookupStatus('');
+    setPurchaseCost('');
+    setPurchaseQuantity('1');
+    setSupplier('');
+    setPurchaseDate('');
+    setPurchaseNotes('');
   };
 
   return (
@@ -173,6 +221,60 @@ export default function AddItemScreen({ route, navigation }) {
         value={category}
         onChangeText={setCategory}
       />
+      <Text style={styles.label}>Shipping Status</Text>
+      <View style={styles.statusRow}>
+        {SHIPPING_STATUSES.map((s) => (
+          <Button
+            key={s.value}
+            title={s.label}
+            onPress={() => setShippingStatus(s.value)}
+            color={shippingStatus === s.value ? colors.primary : undefined}
+          />
+        ))}
+      </View>
+      <Text style={styles.label}>Purchase Cost (total)</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="e.g. 2000"
+        placeholderTextColor={colors.muted}
+        value={purchaseCost}
+        onChangeText={setPurchaseCost}
+        keyboardType="numeric"
+      />
+      <Text style={styles.label}>Purchase Quantity (units)</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="e.g. 50"
+        placeholderTextColor={colors.muted}
+        value={purchaseQuantity}
+        onChangeText={setPurchaseQuantity}
+        keyboardType="numeric"
+      />
+      <Text style={styles.label}>Supplier</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="Supplier (optional)"
+        placeholderTextColor={colors.muted}
+        value={supplier}
+        onChangeText={setSupplier}
+      />
+      <Text style={styles.label}>Purchase Date</Text>
+      <TextInput
+        style={styles.input}
+        placeholder="YYYY-MM-DD (optional)"
+        placeholderTextColor={colors.muted}
+        value={purchaseDate}
+        onChangeText={setPurchaseDate}
+      />
+      <Text style={styles.label}>Purchase Notes</Text>
+      <TextInput
+        style={[styles.input, styles.multiline]}
+        placeholder="Notes (optional)"
+        placeholderTextColor={colors.muted}
+        value={purchaseNotes}
+        onChangeText={setPurchaseNotes}
+        multiline
+      />
       <Text style={styles.label}>Barcode</Text>
       <View style={styles.scanRow}>
         <TextInput
@@ -202,7 +304,8 @@ export default function AddItemScreen({ route, navigation }) {
         <Button title="Pick Image" onPress={pickImage} />
       </View>
       <View style={styles.saveRow}>
-        <Button title="Save" onPress={save} />
+        <Button title="Save" onPress={() => save(false)} />
+        <Button title="Save & Add Another" onPress={() => save(true)} />
       </View>
       <BarcodeScanner
         key={scannerVisible ? 'scanner-open' : 'scanner-closed'}
@@ -234,6 +337,7 @@ const createStyles = (colors) =>
     scanRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
     scanInput: { marginRight: 0 },
     lookupRow: { marginBottom: 10 },
+    statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
     hint: { color: colors.muted, marginBottom: 10 },
     image: { width: '100%', height: 200, marginBottom: 10, borderRadius: 10 },
     row: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 12 },

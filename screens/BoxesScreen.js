@@ -92,6 +92,18 @@ export default function BoxesScreen({ navigation }) {
               disabled={importing}
             />
           </View>
+          <View style={styles.actionButton}>
+            <Button
+              title="Completed Orders"
+              onPress={() => navigation.navigate('CompletedOrders')}
+            />
+          </View>
+          <View style={styles.actionButton}>
+            <Button
+              title="Purchases"
+              onPress={() => navigation.navigate('Purchases')}
+            />
+          </View>
         </View>
       </View>
       {loading ? (
