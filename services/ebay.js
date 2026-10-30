@@ -1,4 +1,18 @@
-const EBAY_PROXY_URL = __DEV__ ? 'http://localhost:4000' : 'http://YOUR_PROXY_URL';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
+
+const PROXY_PORT = 4000;
+
+const getProxyHost = () => {
+  const hostUri = Constants.expoConfig?.hostUri;
+  const host = hostUri ? hostUri.split(':')[0] : '';
+  if (host) return host;
+  return Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
+};
+
+export const EBAY_PROXY_URL = __DEV__
+  ? `http://${getProxyHost()}:${PROXY_PORT}`
+  : 'http://YOUR_PROXY_URL';
 
 export const getEbayListings = async () => {
   const res = await fetch(`${EBAY_PROXY_URL}/api/ebay/listings`);

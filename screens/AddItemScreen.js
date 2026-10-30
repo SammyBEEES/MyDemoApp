@@ -1,12 +1,17 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, TextInput, Button, Image, ScrollView, StyleSheet, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { addItem } from '../services/inventoryRepo';
 import { lookupProduct } from '../services/barcodeLookup';
 import BarcodeScanner from '../components/BarcodeScanner';
+import { useTheme } from '../theme/ThemeProvider';
 
 export default function AddItemScreen({ route, navigation }) {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { boxId } = route.params || {};
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -125,19 +130,55 @@ export default function AddItemScreen({ route, navigation }) {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <ScrollView
+      contentContainerStyle={[styles.container, { paddingBottom: insets.bottom + 32 }]}
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={styles.title}>Add Item</Text>
       {boxId ? <Text style={styles.sub}>Adding to box</Text> : null}
-      <TextInput style={styles.input} placeholder="Name" value={name} onChangeText={setName} />
-      <TextInput style={styles.input} placeholder="Description" value={description} onChangeText={setDescription} multiline />
-      <TextInput style={styles.input} placeholder="Quantity" value={quantity} onChangeText={setQuantity} keyboardType="numeric" />
-      <TextInput style={styles.input} placeholder="Location" value={location} onChangeText={setLocation} />
-      <TextInput style={styles.input} placeholder="Category" value={category} onChangeText={setCategory} />
+      <TextInput
+        style={styles.input}
+        placeholder="Name"
+        placeholderTextColor={colors.muted}
+        value={name}
+        onChangeText={setName}
+      />
+      <TextInput
+        style={[styles.input, styles.multiline]}
+        placeholder="Description"
+        placeholderTextColor={colors.muted}
+        value={description}
+        onChangeText={setDescription}
+        multiline
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Quantity"
+        placeholderTextColor={colors.muted}
+        value={quantity}
+        onChangeText={setQuantity}
+        keyboardType="numeric"
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Location"
+        placeholderTextColor={colors.muted}
+        value={location}
+        onChangeText={setLocation}
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Category"
+        placeholderTextColor={colors.muted}
+        value={category}
+        onChangeText={setCategory}
+      />
       <Text style={styles.label}>Barcode</Text>
       <View style={styles.scanRow}>
         <TextInput
-          style={[styles.input, styles.flex]}
+          style={[styles.input, styles.flex, styles.scanInput]}
           placeholder="Barcode / UPC"
+          placeholderTextColor={colors.muted}
           value={barcode}
           onChangeText={setBarcode}
           keyboardType="numeric"
@@ -160,7 +201,9 @@ export default function AddItemScreen({ route, navigation }) {
         <Button title="Take Photo" onPress={takePhoto} />
         <Button title="Pick Image" onPress={pickImage} />
       </View>
-      <Button title="Save" onPress={save} />
+      <View style={styles.saveRow}>
+        <Button title="Save" onPress={save} />
+      </View>
       <BarcodeScanner
         key={scannerVisible ? 'scanner-open' : 'scanner-closed'}
         visible={scannerVisible}
@@ -171,16 +214,28 @@ export default function AddItemScreen({ route, navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { padding: 16 },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 4 },
-  sub: { color: '#666', marginBottom: 12 },
-  label: { fontWeight: '600', marginBottom: 6 },
-  input: { borderWidth: 1, borderColor: '#ccc', padding: 8, marginBottom: 10, borderRadius: 4 },
-  flex: { flex: 1, marginBottom: 0 },
-  scanRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
-  lookupRow: { marginBottom: 10 },
-  hint: { color: '#666', marginBottom: 10 },
-  image: { width: '100%', height: 200, marginBottom: 10 },
-  row: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 10 },
-});
+const createStyles = (colors) =>
+  StyleSheet.create({
+    container: { padding: 16, backgroundColor: colors.background },
+    title: { fontSize: 24, fontWeight: '700', color: colors.text, marginBottom: 4 },
+    sub: { color: colors.muted, marginBottom: 12 },
+    label: { fontWeight: '600', color: colors.text, marginBottom: 6 },
+    input: {
+      backgroundColor: colors.inputBg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      color: colors.text,
+      padding: 10,
+      marginBottom: 10,
+      borderRadius: 8,
+    },
+    multiline: { minHeight: 80, textAlignVertical: 'top' },
+    flex: { flex: 1, marginBottom: 0 },
+    scanRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+    scanInput: { marginRight: 0 },
+    lookupRow: { marginBottom: 10 },
+    hint: { color: colors.muted, marginBottom: 10 },
+    image: { width: '100%', height: 200, marginBottom: 10, borderRadius: 10 },
+    row: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 12 },
+    saveRow: { marginTop: 8 },
+  });

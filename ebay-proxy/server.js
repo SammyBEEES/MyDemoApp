@@ -2,9 +2,21 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseStringPromise, Builder } from 'xml2js';
 
-dotenv.config();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const envPath = [
+  process.env.DOTENV_CONFIG_PATH,
+  path.resolve(__dirname, '../../.env'),
+  path.resolve(__dirname, '.env'),
+]
+  .filter(Boolean)
+  .map((candidate) => path.resolve(candidate))
+  .find((candidate) => fs.existsSync(candidate));
+if (envPath) dotenv.config({ path: envPath });
 
 const app = express();
 app.use(cors());

@@ -1,6 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Modal, Button, ActivityIndicator } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Button, ActivityIndicator, Modal } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '../theme/ThemeProvider';
 
 const BARCODE_TYPES = [
   'ean13',
@@ -16,6 +18,9 @@ const BARCODE_TYPES = [
 ];
 
 export default function BarcodeScanner({ visible, onClose, onScanned }) {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const lastScan = useRef({ data: null, at: 0 });
@@ -47,7 +52,7 @@ export default function BarcodeScanner({ visible, onClose, onScanned }) {
     if (!permission) {
       return (
         <View style={styles.center}>
-          <ActivityIndicator />
+          <ActivityIndicator color={colors.primary} />
           <Text style={styles.message}>Checking camera permission...</Text>
         </View>
       );
@@ -87,7 +92,7 @@ export default function BarcodeScanner({ visible, onClose, onScanned }) {
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <View style={styles.container}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
           <Text style={styles.title}>Scan Barcode</Text>
           <Button title="Close" onPress={onClose} />
         </View>
@@ -97,32 +102,41 @@ export default function BarcodeScanner({ visible, onClose, onScanned }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    paddingTop: 48,
-    backgroundColor: '#fff',
-  },
-  title: { fontSize: 20, fontWeight: 'bold' },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: '#fff' },
-  message: { textAlign: 'center', marginVertical: 12, color: '#333' },
-  cameraWrap: { flex: 1 },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  frame: {
-    width: '75%',
-    height: 180,
-    borderWidth: 2,
-    borderColor: '#fff',
-    borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  hint: { color: '#fff', marginTop: 16, fontSize: 16, textAlign: 'center' },
-});
+const createStyles = (colors) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingBottom: 16,
+      backgroundColor: colors.card,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    title: { fontSize: 20, fontWeight: '700', color: colors.text },
+    center: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+      backgroundColor: colors.background,
+    },
+    message: { textAlign: 'center', marginVertical: 12, color: colors.muted },
+    cameraWrap: { flex: 1, backgroundColor: '#000' },
+    overlay: {
+      ...StyleSheet.absoluteFillObject,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    frame: {
+      width: '75%',
+      height: 180,
+      borderWidth: 2,
+      borderColor: '#fff',
+      borderRadius: 12,
+      backgroundColor: 'rgba(255,255,255,0.08)',
+    },
+    hint: { color: '#fff', marginTop: 16, fontSize: 16, textAlign: 'center' },
+  });

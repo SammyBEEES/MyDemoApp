@@ -1,10 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Button, TextInput, Modal, Alert } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { initDB } from '../db/init';
 import { getAllBoxes, addBox } from '../services/inventoryRepo';
 import { importEbayListingsToUnsorted } from '../services/ebayImport';
+import { useTheme } from '../theme/ThemeProvider';
 
 export default function BoxesScreen({ navigation }) {
+  const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [boxes, setBoxes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
@@ -65,6 +70,7 @@ export default function BoxesScreen({ navigation }) {
   const renderItem = ({ item }) => (
     <TouchableOpacity
       style={styles.item}
+      activeOpacity={0.75}
       onPress={() => navigation.navigate('BoxItems', { box: item })}
     >
       <Text style={styles.name}>{item.name}</Text>
@@ -74,26 +80,51 @@ export default function BoxesScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <Button title="Create Box" onPress={() => setModalVisible(true)} />
-      <Button
-        title={importing ? 'Importing...' : 'Import eBay Listings'}
-        onPress={importEbay}
-        disabled={importing}
-      />
+      <View style={styles.header}>
+        <View style={styles.actions}>
+          <View style={styles.actionButton}>
+            <Button title="Create Box" onPress={() => setModalVisible(true)} />
+          </View>
+          <View style={styles.actionButton}>
+            <Button
+              title={importing ? 'Importing...' : 'Import eBay'}
+              onPress={importEbay}
+              disabled={importing}
+            />
+          </View>
+        </View>
+      </View>
       {loading ? (
-        <Text>Loading...</Text>
+        <Text style={styles.message}>Loading...</Text>
       ) : boxes.length === 0 ? (
         <Text style={styles.empty}>No boxes yet. Create one to start adding items.</Text>
       ) : (
-        <FlatList data={boxes} keyExtractor={(item) => item.id} renderItem={renderItem} contentContainerStyle={styles.list} />
+        <FlatList
+          data={boxes}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + 24 }]}
+        />
       )}
 
-      <Modal visible={modalVisible} animationType="slide" transparent>
+      <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalBg}>
           <View style={styles.modal}>
             <Text style={styles.title}>New Box</Text>
-            <TextInput style={styles.input} placeholder="Box name" value={name} onChangeText={setName} />
-            <TextInput style={styles.input} placeholder="Description (optional)" value={desc} onChangeText={setDesc} />
+            <TextInput
+              style={styles.input}
+              placeholder="Box name"
+              placeholderTextColor={colors.muted}
+              value={name}
+              onChangeText={setName}
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Description (optional)"
+              placeholderTextColor={colors.muted}
+              value={desc}
+              onChangeText={setDesc}
+            />
             <View style={styles.row}>
               <Button title="Cancel" onPress={() => setModalVisible(false)} />
               <Button title="Create" onPress={createBox} />
@@ -105,16 +136,49 @@ export default function BoxesScreen({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 12 },
-  list: { paddingTop: 10 },
-  item: { padding: 12, borderWidth: 1, borderColor: '#eee', borderRadius: 6, marginBottom: 8 },
-  name: { fontSize: 18, fontWeight: 'bold' },
-  meta: { color: '#666' },
-  empty: { textAlign: 'center', marginTop: 20, color: '#666' },
-  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', padding: 20 },
-  modal: { backgroundColor: '#fff', borderRadius: 8, padding: 16 },
-  title: { fontSize: 20, fontWeight: 'bold', marginBottom: 10 },
-  input: { borderWidth: 1, borderColor: '#ccc', padding: 8, marginBottom: 10, borderRadius: 4 },
-  row: { flexDirection: 'row', justifyContent: 'space-around' },
-});
+const createStyles = (colors) =>
+  StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    header: { paddingHorizontal: 16, paddingTop: 12 },
+    actions: { flexDirection: 'row', gap: 10 },
+    actionButton: { flex: 1 },
+    list: { paddingHorizontal: 16, paddingTop: 12 },
+    item: {
+      backgroundColor: colors.card,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderLeftWidth: 4,
+      borderLeftColor: colors.primary,
+      borderRadius: 12,
+      marginBottom: 12,
+      shadowColor: colors.shadow,
+      shadowOpacity: 0.12,
+      shadowRadius: 6,
+      shadowOffset: { width: 0, height: 3 },
+      elevation: 3,
+    },
+    name: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 2 },
+    meta: { color: colors.muted, fontSize: 14 },
+    message: { color: colors.muted, marginTop: 20, textAlign: 'center' },
+    empty: { textAlign: 'center', marginTop: 24, marginHorizontal: 24, color: colors.muted },
+    modalBg: { flex: 1, backgroundColor: colors.overlay, justifyContent: 'center', padding: 20 },
+    modal: {
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      padding: 18,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    title: { fontSize: 20, fontWeight: '700', color: colors.text, marginBottom: 12 },
+    input: {
+      backgroundColor: colors.inputBg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      color: colors.text,
+      padding: 10,
+      marginBottom: 10,
+      borderRadius: 8,
+    },
+    row: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 4 },
+  });
