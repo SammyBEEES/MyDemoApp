@@ -1,14 +1,15 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   FlatList,
   TouchableOpacity,
-  Image,
   Button,
   StyleSheet,
   Alert,
-  Picker,
+  Modal,
+  TextInput,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { initDB } from '../db/init';
@@ -30,12 +31,14 @@ export default function PurchasesScreen({ navigation }) {
   const [ungroupedItems, setUngroupedItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [linkingItem, setLinkingItem] = useState(null);
-  const [selectedPurchaseId, setSelectedPurchaseId] = useState('');
   const [newPurchaseVisible, setNewPurchaseVisible] = useState(false);
   const [newPurchaseCost, setNewPurchaseCost] = useState('');
   const [newPurchaseQty, setNewPurchaseQty] = useState('1');
   const [newPurchaseSupplier, setNewPurchaseSupplier] = useState('');
   const [newPurchaseNotes, setNewPurchaseNotes] = useState('');
+  const [addItemModalVisible, setAddItemModalVisible] = useState(false);
+  const [addItemName, setAddItemName] = useState('');
+  const [addItemPurchaseId, setAddItemPurchaseId] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -87,15 +90,10 @@ export default function PurchasesScreen({ navigation }) {
     }
   };
 
-  const linkItem = async (itemId) => {
-    if (!selectedPurchaseId) {
-      Alert.alert('Select a purchase', 'Please choose a purchase to link this item to.');
-      return;
-    }
+  const linkItem = async (itemId, purchaseId) => {
     try {
-      await linkItemToPurchase(itemId, selectedPurchaseId);
+      await linkItemToPurchase(itemId, purchaseId);
       setLinkingItem(null);
-      setSelectedPurchaseId('');
       load();
     } catch {
       Alert.alert('Error', 'Failed to link item to purchase');
@@ -128,17 +126,28 @@ export default function PurchasesScreen({ navigation }) {
     }
   };
 
-  const addItemToPurchase = async (purchaseId, itemName) => {
-    const name = prompt(`Enter item name to add to "${itemName}" purchase:`);
-    if (!name) return;
+  const openAddItemModal = (purchaseId) => {
+    setAddItemPurchaseId(purchaseId);
+    setAddItemName('');
+    setAddItemModalVisible(true);
+  };
+
+  const saveNewItemToPurchase = async () => {
+    if (!addItemName.trim()) {
+      Alert.alert('Missing name', 'Please enter an item name');
+      return;
+    }
     try {
       await initDB();
       const itemId = await addItem({
-        name,
+        name: addItemName.trim(),
         category: 'Purchased',
         shippingStatus: 'pending',
       });
-      await linkItemToPurchase(itemId, purchaseId);
+      await linkItemToPurchase(itemId, addItemPurchaseId);
+      setAddItemModalVisible(false);
+      setAddItemPurchaseId(null);
+      setAddItemName('');
       load();
     } catch (e) {
       Alert.alert('Error', 'Failed to add item to purchase');
@@ -146,10 +155,7 @@ export default function PurchasesScreen({ navigation }) {
   };
 
   const renderPurchase = ({ item }) => (
-    <TouchableOpacity
-      style={styles.item}
-      activeOpacity={0.75}
-    >
+    <View style={styles.item}>
       <View style={styles.info}>
         <View style={styles.purchaseHeader}>
           <Text style={styles.name}>
@@ -180,15 +186,15 @@ export default function PurchasesScreen({ navigation }) {
         {item.status === 'ongoing' && (
           <Button
             title="Add Item"
-            onPress={() => addItemToPurchase(item.id, item.itemName || 'this purchase')}
+            onPress={() => openAddItemModal(item.id)}
           />
         )}
       </View>
-    </TouchableOpacity>
+    </View>
   );
 
   const renderUngroupedItem = ({ item }) => (
-    <TouchableOpacity style={styles.ungroupedItem} activeOpacity={0.75}>
+    <View style={styles.ungroupedItem}>
       <View style={styles.ungroupedInfo}>
         <Text style={styles.ungroupedName}>{item.name}</Text>
         <Text style={styles.ungroupedMeta}>
@@ -197,118 +203,149 @@ export default function PurchasesScreen({ navigation }) {
       </View>
       {linkingItem === item.id ? (
         <View style={styles.linkRow}>
-          <Picker
-            selectedValue={selectedPurchaseId}
-            onValueChange={setSelectedPurchaseId}
-            style={styles.picker}
-          >
-            <Picker.Item label="Select a purchase..." value="" />
-            {purchases.map((p) => (
-              <Picker.Item
-                key={p.id}
-                label={`${p.itemName ? `Purchase for "${p.itemName}"` : 'Group Purchase'} (${formatCurrency(p.cost)})`}
-                value={p.id}
-              />
-            ))}
-          </Picker>
-          <Button title="Link" onPress={() => linkItem(item.id)} />
+          <Text style={styles.linkHint}>Select a purchase:</Text>
+          <FlatList
+            horizontal
+            data={purchases}
+            keyExtractor={(p) => p.id}
+            renderItem={({ item: p }) => (
+              <TouchableOpacity
+                style={styles.linkButton}
+                onPress={() => linkItem(item.id, p.id)}
+              >
+                <Text style={styles.linkButtonText}>
+                  {p.itemName ? `"${p.itemName}"` : 'Group'} ({formatCurrency(p.cost)})
+                </Text>
+              </TouchableOpacity>
+            )}
+          />
+          <Button title="Cancel" onPress={() => setLinkingItem(null)} />
         </View>
       ) : (
         <Button title="Link to Purchase" onPress={() => setLinkingItem(item.id)} />
       )}
-    </TouchableOpacity>
+    </View>
   );
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Purchases</Text>
-        <Text style={styles.subtitle}>
-          Total spent: {formatCurrency(total)} ({purchases.length} purchase(s))
-        </Text>
-      </View>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.header}>
+          <Text style={styles.title}>Purchases</Text>
+          <Text style={styles.subtitle}>
+            Total spent: {formatCurrency(total)} ({purchases.length} purchase(s))
+          </Text>
+        </View>
 
-      {loading ? (
-        <Text style={styles.message}>Loading...</Text>
-      ) : (
-        <>
-          {purchases.length > 0 ? (
-            <>
-              <Text style={styles.sectionTitle}>Purchases</Text>
-              <FlatList
-                data={purchases}
-                keyExtractor={(item) => item.id}
-                renderItem={renderPurchase}
-                contentContainerStyle={styles.list}
-              />
-            </>
-          ) : null}
+        {loading ? (
+          <Text style={styles.message}>Loading...</Text>
+        ) : (
+          <>
+            {purchases.length > 0 ? (
+              <>
+                <Text style={styles.sectionTitle}>Purchases</Text>
+                <FlatList
+                  data={purchases}
+                  keyExtractor={(item) => item.id}
+                  renderItem={renderPurchase}
+                  contentContainerStyle={styles.list}
+                  scrollEnabled={false}
+                />
+              </>
+            ) : null}
 
-          {ungroupedItems.length > 0 ? (
-            <>
-              <Text style={styles.sectionTitle}>Ungrouped Items</Text>
-              <Text style={styles.ungroupedHint}>
-                Items not yet linked to a purchase. Tap "Link to Purchase" to connect them.
+            {ungroupedItems.length > 0 ? (
+              <>
+                <Text style={styles.sectionTitle}>Ungrouped Items</Text>
+                <Text style={styles.ungroupedHint}>
+                  Items not yet linked to a purchase. Tap "Link to Purchase" to connect them.
+                </Text>
+                <FlatList
+                  data={ungroupedItems}
+                  keyExtractor={(item) => item.id}
+                  renderItem={renderUngroupedItem}
+                  contentContainerStyle={styles.list}
+                  scrollEnabled={false}
+                />
+              </>
+            ) : null}
+
+            {purchases.length === 0 && ungroupedItems.length === 0 ? (
+              <Text style={styles.empty}>
+                No purchases yet. Tap "Add Purchase" to create one.
               </Text>
-              <FlatList
-                data={ungroupedItems}
-                keyExtractor={(item) => item.id}
-                renderItem={renderUngroupedItem}
-                contentContainerStyle={styles.list}
-              />
-            </>
-          ) : null}
-        </>
-      )}
+            ) : null}
+          </>
+        )}
 
-      <View style={styles.buttonRow}>
-        <Button
-          title={newPurchaseVisible ? 'Cancel' : 'Add Purchase'}
-          onPress={() => setNewPurchaseVisible(!newPurchaseVisible)}
-        />
-        <Button title="Back to Boxes" onPress={() => navigation.goBack()} />
-      </View>
+        <View style={styles.buttonRow}>
+          <Button
+            title={newPurchaseVisible ? 'Cancel' : 'Add Purchase'}
+            onPress={() => setNewPurchaseVisible(!newPurchaseVisible)}
+          />
+          <Button title="Back to Boxes" onPress={() => navigation.goBack()} />
+        </View>
 
-      {newPurchaseVisible && (
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>New Purchase</Text>
-          <TextInput
-            style={[styles.input, styles.multiline]}
-            placeholder="Purchase cost (total, e.g. 2000)"
-            placeholderTextColor={colors.muted}
-            value={newPurchaseCost}
-            onChangeText={setNewPurchaseCost}
-            keyboardType="numeric"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Quantity (units, e.g. 50)"
-            placeholderTextColor={colors.muted}
-            value={newPurchaseQty}
-            onChangeText={setNewPurchaseQty}
-            keyboardType="numeric"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Supplier (optional)"
-            placeholderTextColor={colors.muted}
-            value={newPurchaseSupplier}
-            onChangeText={setNewPurchaseSupplier}
-          />
-          <TextInput
-            style={[styles.input, styles.multiline]}
-            placeholder="Notes (optional)"
-            placeholderTextColor={colors.muted}
-            value={newPurchaseNotes}
-            onChangeText={setNewPurchaseNotes}
-            multiline
-          />
-          <View style={styles.actions}>
-            <Button title="Create Purchase" onPress={createPurchase} />
-            <Button title="Cancel" onPress={() => setNewPurchaseVisible(false)} />
+        {newPurchaseVisible && (
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>New Purchase</Text>
+            <TextInput
+              style={[styles.input, styles.multiline]}
+              placeholder="Purchase cost (total, e.g. 2000)"
+              placeholderTextColor={colors.muted}
+              value={newPurchaseCost}
+              onChangeText={setNewPurchaseCost}
+              keyboardType="numeric"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Quantity (units, e.g. 50)"
+              placeholderTextColor={colors.muted}
+              value={newPurchaseQty}
+              onChangeText={setNewPurchaseQty}
+              keyboardType="numeric"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Supplier (optional)"
+              placeholderTextColor={colors.muted}
+              value={newPurchaseSupplier}
+              onChangeText={setNewPurchaseSupplier}
+            />
+            <TextInput
+              style={[styles.input, styles.multiline]}
+              placeholder="Notes (optional)"
+              placeholderTextColor={colors.muted}
+              value={newPurchaseNotes}
+              onChangeText={setNewPurchaseNotes}
+              multiline
+            />
+            <View style={styles.actions}>
+              <Button title="Create Purchase" onPress={createPurchase} />
+              <Button title="Cancel" onPress={() => setNewPurchaseVisible(false)} />
+            </View>
+          </View>
+        )}
+      </ScrollView>
+
+      <Modal visible={addItemModalVisible} transparent animationType="slide" onRequestClose={() => setAddItemModalVisible(false)}>
+        <View style={styles.modalBg}>
+          <View style={styles.modal}>
+            <Text style={styles.modalTitle}>Add Item to Purchase</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Item name"
+              placeholderTextColor={colors.muted}
+              value={addItemName}
+              onChangeText={setAddItemName}
+            />
+            <View style={styles.modalActions}>
+              <Button title="Cancel" onPress={() => setAddItemModalVisible(false)} />
+              <Button title="Save Item" onPress={saveNewItemToPurchase} />
+            </View>
           </View>
         </View>
-      )}
+      </Modal>
     </View>
   );
 }
@@ -316,6 +353,7 @@ export default function PurchasesScreen({ navigation }) {
 const createStyles = (colors) =>
   StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
+    scrollContent: { paddingBottom: 32 },
     header: { paddingHorizontal: 16, paddingTop: 12, gap: 4 },
     title: { fontSize: 22, fontWeight: '700', color: colors.text },
     subtitle: { color: colors.muted, fontSize: 15 },
@@ -370,17 +408,18 @@ const createStyles = (colors) =>
     ungroupedInfo: { flex: 1 },
     ungroupedName: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 2 },
     ungroupedMeta: { color: colors.muted, fontSize: 14 },
-    linkRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 8 },
-    picker: {
-      flex: 1,
-      backgroundColor: colors.inputBg,
-      borderWidth: 1,
-      borderColor: colors.border,
-      color: colors.text,
-      padding: 8,
+    linkRow: { flexDirection: 'row', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' },
+    linkHint: { color: colors.muted, fontSize: 14 },
+    linkButton: {
+      backgroundColor: colors.primary,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
       borderRadius: 8,
+      marginRight: 8,
     },
+    linkButtonText: { color: colors.primaryText, fontSize: 13, fontWeight: '600' },
     message: { color: colors.muted, marginTop: 20, textAlign: 'center' },
+    empty: { textAlign: 'center', marginTop: 24, marginHorizontal: 24, color: colors.muted },
     buttonRow: { flexDirection: 'row', gap: 8, margin: 16 },
     card: {
       backgroundColor: colors.card,
@@ -391,8 +430,6 @@ const createStyles = (colors) =>
       marginHorizontal: 16,
       marginBottom: 12,
     },
-    section: { marginBottom: 16 },
-    sectionTitle2: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 8 },
     input: {
       backgroundColor: colors.inputBg,
       borderWidth: 1,
@@ -404,4 +441,14 @@ const createStyles = (colors) =>
     },
     multiline: { minHeight: 80, textAlignVertical: 'top' },
     actions: { gap: 10, marginTop: 8 },
+    modalBg: { flex: 1, backgroundColor: colors.overlay, justifyContent: 'center', padding: 20 },
+    modal: {
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      padding: 18,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    modalTitle: { fontSize: 20, fontWeight: '700', color: colors.text, marginBottom: 12 },
+    modalActions: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 4 },
   });
