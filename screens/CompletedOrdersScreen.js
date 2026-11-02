@@ -1,8 +1,9 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, FlatList, Image, Button, StyleSheet } from 'react-native';
+import { View, Text, FlatList, Image, Button, StyleSheet, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { getEbayOrders } from '../services/ebay';
+import { importEbayOrders } from '../services/ebayImport';
 import { useTheme } from '../theme/ThemeProvider';
 
 export default function CompletedOrdersScreen() {
@@ -12,6 +13,7 @@ export default function CompletedOrdersScreen() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [importing, setImporting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -25,6 +27,23 @@ export default function CompletedOrdersScreen() {
       setLoading(false);
     }
   }, []);
+
+  const importToInventory = async () => {
+    if (importing) return;
+    setImporting(true);
+    try {
+      const result = await importEbayOrders();
+      Alert.alert(
+        'Orders imported',
+        `${result.imported} order(s) imported to inventory.${result.skipped ? ` ${result.skipped} already existed.` : ''}`
+      );
+      load();
+    } catch (e) {
+      Alert.alert('Error', `Failed to import: ${e.message}`);
+    } finally {
+      setImporting(false);
+    }
+  };
 
   useFocusEffect(useCallback(() => {
     load();
@@ -72,7 +91,10 @@ export default function CompletedOrdersScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.subtitle}>{orders.length} order line(s)</Text>
-        <Button title={loading ? 'Loading...' : 'Refresh Orders'} onPress={load} disabled={loading} />
+        <View style={styles.buttonRow}>
+          <Button title={loading ? 'Loading...' : 'Refresh Orders'} onPress={load} disabled={loading} />
+          <Button title={importing ? 'Importing...' : 'Import to Inventory'} onPress={importToInventory} disabled={importing} />
+        </View>
       </View>
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {loading ? (
@@ -100,6 +122,7 @@ const createStyles = (colors) =>
     container: { flex: 1, backgroundColor: colors.background },
     header: { paddingHorizontal: 16, paddingTop: 12, gap: 4 },
     subtitle: { color: colors.muted, fontSize: 15 },
+    buttonRow: { flexDirection: 'row', gap: 10, marginTop: 8 },
     list: { paddingHorizontal: 16, paddingTop: 12 },
     item: {
       flexDirection: 'row',

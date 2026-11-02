@@ -23,5 +23,8 @@ It runs on http://localhost:4000
 
 ## Endpoints
 - `GET /api/ebay/listings` - Get active listings from your account
+- `GET /api/ebay/orders` - Get seller orders from the last 90 days
 - `GET /api/ebay/item/:itemId` - Get item details
 - `POST /api/ebay/revise` - Revise inventory status (body: {itemId, quantity})
+
+Run the order-response tests with `npm test` from this directory.
