@@ -36,7 +36,7 @@ export const parseEbayOrdersResponse = async (xmlText) => {
         price: price ? Number(price) : null,
         buyer: tx.Buyer?.UserID || null,
         createdDate: tx.CreatedTime ? new Date(tx.CreatedTime).getTime() : null,
-        shippingStatus: tx.ShippingDetails?.ShippedBySellerTime ? 'shipped' : 'pending',
+        shippingStatus: tx.ShippingDetails?.ShippedTime ? 'shipped' : 'pending',
         picture: item.PictureDetails?.GalleryURL ? item.PictureDetails.GalleryURL.replace(/\/s-l\d+\./, '/s-l500.') : null,
       };
     });

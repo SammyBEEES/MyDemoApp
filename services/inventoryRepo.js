@@ -4,9 +4,11 @@ import {
   webGetAllBoxes,
   webAddBox,
   webGetBoxById,
+  webDeleteBox,
   webGetItemsByBoxId,
   webGetItemsByShippingStatus,
   webGetAllItems,
+  webGetUngroupedItems,
   webAddItem,
   webGetItemById,
   webUpdateItem,
@@ -15,6 +17,8 @@ import {
   webAddPurchase,
   webGetPurchases,
   webGetPurchasesByItemId,
+  webLinkItemToPurchase,
+  webUpdatePurchaseStatus,
 } from './webStore';
 
 const now = () => Date.now();
@@ -50,6 +54,28 @@ export const addBox = async (box) => {
   return new Promise((resolve) => {
     db.transaction((tx) => {
       tx.executeSql('INSERT INTO boxes (id, name, description, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)', [id, box.name || 'Untitled Box', box.description || '', box.createdAt || ts, ts], () => resolve(id), () => { resolve(webAddBox({ ...box, id })); return false; });
+    });
+  });
+};
+
+export const deleteBox = async (boxId) => {
+  if (Platform.OS === 'web') return webDeleteBox(boxId);
+  const db = getDB();
+  if (!db) return webDeleteBox(boxId);
+  try {
+    if (db.runSync) {
+      db.runSync('UPDATE items SET boxId = NULL WHERE boxId = ?', [boxId]);
+      db.runSync('DELETE FROM boxes WHERE id = ?', [boxId]);
+      return;
+    }
+  } catch {
+    return webDeleteBox(boxId);
+  }
+  return new Promise((resolve) => {
+    db.transaction((tx) => {
+      tx.executeSql('UPDATE items SET boxId = NULL WHERE boxId = ?', [boxId], () => {
+        tx.executeSql('DELETE FROM boxes WHERE id = ?', [boxId], () => resolve(), () => { resolve(); return false; });
+      }, () => { resolve(); return false; });
     });
   });
 };
@@ -92,6 +118,20 @@ export const getItemsByShippingStatus = async (status) => {
   return new Promise((resolve) => {
     db.transaction((tx) => {
       tx.executeSql('SELECT * FROM items WHERE shippingStatus = ? ORDER BY createdAt DESC', [status], (_, { rows }) => resolve(rows._array || []), () => { resolve([]); return false; });
+    });
+  });
+};
+
+export const getUngroupedItems = async () => {
+  if (Platform.OS === 'web') return webGetUngroupedItems();
+  const db = getDB();
+  if (!db) return webGetUngroupedItems();
+  try {
+    if (db.getAllSync) return db.getAllSync('SELECT * FROM items WHERE purchaseId IS NULL ORDER BY createdAt DESC');
+  } catch {}
+  return new Promise((resolve) => {
+    db.transaction((tx) => {
+      tx.executeSql('SELECT * FROM items WHERE purchaseId IS NULL ORDER BY createdAt DESC', [], (_, { rows }) => resolve(rows._array || []), () => { resolve([]); return false; });
     });
   });
 };
@@ -291,19 +331,20 @@ export const addPurchase = async (purchase) => {
   const ts = now();
   const values = [
     id,
-    purchase.itemId,
+    purchase.itemId || null,
     purchase.cost ?? 0,
     purchase.quantity ?? 1,
     purchase.purchaseDate || ts,
     purchase.supplier || null,
     purchase.notes || null,
+    purchase.status || 'ongoing',
     ts,
   ];
   try {
     if (db.runSync) {
       db.runSync(
-        `INSERT INTO purchases (id, itemId, cost, quantity, purchaseDate, supplier, notes, createdAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO purchases (id, itemId, cost, quantity, purchaseDate, supplier, notes, status, createdAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         values
       );
       return id;
@@ -314,12 +355,52 @@ export const addPurchase = async (purchase) => {
   return new Promise((resolve) => {
     db.transaction((tx) => {
       tx.executeSql(
-        `INSERT INTO purchases (id, itemId, cost, quantity, purchaseDate, supplier, notes, createdAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO purchases (id, itemId, cost, quantity, purchaseDate, supplier, notes, status, createdAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         values,
         () => resolve(id),
         () => { resolve(webAddPurchase({ ...purchase, id })); return false; }
       );
+    });
+  });
+};
+
+export const linkItemToPurchase = async (itemId, purchaseId) => {
+  if (Platform.OS === 'web') return webLinkItemToPurchase(itemId, purchaseId);
+  const db = getDB();
+  if (!db) return webLinkItemToPurchase(itemId, purchaseId);
+  const ts = now();
+  try {
+    if (db.runSync) {
+      db.runSync('UPDATE items SET purchaseId = ?, updatedAt = ? WHERE id = ?', [purchaseId, ts, itemId]);
+      return;
+    }
+  } catch {
+    return webLinkItemToPurchase(itemId, purchaseId);
+  }
+  return new Promise((resolve) => {
+    db.transaction((tx) => {
+      tx.executeSql('UPDATE items SET purchaseId = ?, updatedAt = ? WHERE id = ?', [purchaseId, ts, itemId], () => resolve(), () => { resolve(); return false; });
+    });
+  });
+};
+
+export const updatePurchaseStatus = async (purchaseId, status) => {
+  if (Platform.OS === 'web') return webUpdatePurchaseStatus(purchaseId, status);
+  const db = getDB();
+  if (!db) return webUpdatePurchaseStatus(purchaseId, status);
+  const ts = now();
+  try {
+    if (db.runSync) {
+      db.runSync('UPDATE purchases SET status = ?, updatedAt = ? WHERE id = ?', [status, ts, purchaseId]);
+      return;
+    }
+  } catch {
+    return webUpdatePurchaseStatus(purchaseId, status);
+  }
+  return new Promise((resolve) => {
+    db.transaction((tx) => {
+      tx.executeSql('UPDATE purchases SET status = ?, updatedAt = ? WHERE id = ?', [status, ts, purchaseId], () => resolve(), () => { resolve(); return false; });
     });
   });
 };
@@ -331,7 +412,8 @@ export const getPurchases = async () => {
   try {
     if (db.getAllSync) {
       return db.getAllSync(
-        `SELECT p.*, i.name AS itemName, i.boxId AS itemBoxId
+        `SELECT p.*, i.name AS itemName, i.boxId AS itemBoxId,
+         (SELECT COUNT(*) FROM items i2 WHERE i2.purchaseId = p.id) AS linkedItemCount
          FROM purchases p
          LEFT JOIN items i ON p.itemId = i.id
          ORDER BY p.purchaseDate DESC, p.createdAt DESC`
@@ -341,7 +423,8 @@ export const getPurchases = async () => {
   return new Promise((resolve) => {
     db.transaction((tx) => {
       tx.executeSql(
-        `SELECT p.*, i.name AS itemName, i.boxId AS itemBoxId
+        `SELECT p.*, i.name AS itemName, i.boxId AS itemBoxId,
+         (SELECT COUNT(*) FROM items i2 WHERE i2.purchaseId = p.id) AS linkedItemCount
          FROM purchases p
          LEFT JOIN items i ON p.itemId = i.id
          ORDER BY p.purchaseDate DESC, p.createdAt DESC`,

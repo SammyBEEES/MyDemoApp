@@ -66,6 +66,14 @@ export const webAddBox = async (box) => {
   return id;
 };
 
+export const webDeleteBox = async (boxId) => {
+  const data = await load();
+  data.boxes = (data.boxes || []).filter((b) => b.id !== boxId);
+  const items = (data.items || []).map((i) => i.boxId === boxId ? { ...i, boxId: null } : i);
+  data.items = items;
+  await save(data);
+};
+
 export const webGetBoxById = async (id) => {
   const data = await load();
   return (data.boxes || []).find((b) => b.id === id) || null;
@@ -80,6 +88,12 @@ export const webGetItemsByBoxId = async (boxId) => {
 export const webGetItemsByShippingStatus = async (status) => {
   const data = await load();
   const items = (data.items || []).filter((i) => i.shippingStatus === status);
+  return [...items].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+};
+
+export const webGetUngroupedItems = async () => {
+  const data = await load();
+  const items = (data.items || []).filter((i) => !i.purchaseId);
   return [...items].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 };
 
@@ -162,12 +176,13 @@ export const webAddPurchase = async (purchase) => {
   const ts = now();
   const newPurchase = {
     id,
-    itemId: purchase.itemId,
+    itemId: purchase.itemId || null,
     cost: purchase.cost ?? 0,
     quantity: purchase.quantity ?? 1,
     purchaseDate: purchase.purchaseDate || ts,
     supplier: purchase.supplier || null,
     notes: purchase.notes || null,
+    status: purchase.status || 'ongoing',
     createdAt: ts,
   };
   data.purchases = data.purchases || [];
@@ -183,10 +198,12 @@ export const webGetPurchases = async () => {
   );
   return purchases.map((p) => {
     const item = (data.items || []).find((i) => i.id === p.itemId);
+    const linkedItemCount = (data.items || []).filter((i) => i.purchaseId === p.id).length;
     return {
       ...p,
       itemName: item?.name || null,
       itemBoxId: item?.boxId || null,
+      linkedItemCount,
     };
   });
 };
@@ -196,4 +213,26 @@ export const webGetPurchasesByItemId = async (itemId) => {
   return (data.purchases || [])
     .filter((p) => p.itemId === itemId)
     .sort((a, b) => (b.purchaseDate || 0) - (a.purchaseDate || 0));
+};
+
+export const webLinkItemToPurchase = async (itemId, purchaseId) => {
+  const data = await load();
+  const items = data.items || [];
+  const idx = items.findIndex((i) => i.id === itemId);
+  if (idx >= 0) {
+    items[idx] = { ...items[idx], purchaseId, updatedAt: now() };
+    data.items = items;
+    await save(data);
+  }
+};
+
+export const webUpdatePurchaseStatus = async (purchaseId, status) => {
+  const data = await load();
+  const purchases = data.purchases || [];
+  const idx = purchases.findIndex((p) => p.id === purchaseId);
+  if (idx >= 0) {
+    purchases[idx] = { ...purchases[idx], status, updatedAt: now() };
+    data.purchases = purchases;
+    await save(data);
+  }
 };

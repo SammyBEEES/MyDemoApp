@@ -16,7 +16,6 @@ export default function AddItemScreen({ route, navigation }) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [quantity, setQuantity] = useState('1');
-  const [location, setLocation] = useState('');
   const [category, setCategory] = useState('');
   const [barcode, setBarcode] = useState('');
   const [imageUri, setImageUri] = useState(null);
@@ -131,7 +130,6 @@ export default function AddItemScreen({ route, navigation }) {
         name: name.trim(),
         description: description.trim(),
         quantity: parseInt(quantity) || 1,
-        location: location.trim(),
         category: category.trim(),
         barcode: barcode.trim(),
         imageUri,
@@ -164,7 +162,6 @@ export default function AddItemScreen({ route, navigation }) {
     setName('');
     setDescription('');
     setQuantity('1');
-    setLocation('');
     setCategory('');
     setBarcode('');
     setImageUri(null);
@@ -206,13 +203,6 @@ export default function AddItemScreen({ route, navigation }) {
         value={quantity}
         onChangeText={setQuantity}
         keyboardType="numeric"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Location"
-        placeholderTextColor={colors.muted}
-        value={location}
-        onChangeText={setLocation}
       />
       <TextInput
         style={styles.input}

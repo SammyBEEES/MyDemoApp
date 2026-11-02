@@ -36,24 +36,27 @@ export const initDB = async () => {
             category TEXT,
             barcode TEXT,
             imageUri TEXT,
+            purchaseId TEXT,
             createdAt INTEGER,
             updatedAt INTEGER,
             synced INTEGER DEFAULT 0,
             ebayItemId TEXT,
             ebaySku TEXT,
             shippingStatus TEXT DEFAULT 'pending',
-            FOREIGN KEY(boxId) REFERENCES boxes(id)
+            FOREIGN KEY(boxId) REFERENCES boxes(id),
+            FOREIGN KEY(purchaseId) REFERENCES purchases(id)
           );`
         );
         db.execSync(
           `CREATE TABLE IF NOT EXISTS purchases (
             id TEXT PRIMARY KEY NOT NULL,
-            itemId TEXT NOT NULL,
+            itemId TEXT,
             cost REAL NOT NULL DEFAULT 0,
             quantity INTEGER DEFAULT 1,
             purchaseDate INTEGER,
             supplier TEXT,
             notes TEXT,
+            status TEXT DEFAULT 'ongoing',
             createdAt INTEGER,
             FOREIGN KEY(itemId) REFERENCES items(id)
           );`
@@ -70,6 +73,13 @@ export const initDB = async () => {
         }
         if (!itemColumns.includes('shippingStatus')) {
           db.execSync("ALTER TABLE items ADD COLUMN shippingStatus TEXT DEFAULT 'pending'");
+        }
+        if (!itemColumns.includes('purchaseId')) {
+          db.execSync('ALTER TABLE items ADD COLUMN purchaseId TEXT');
+        }
+        const purchaseColumns = db.getAllSync('PRAGMA table_info(purchases)').map((column) => column.name);
+        if (!purchaseColumns.includes('status')) {
+          db.execSync("ALTER TABLE purchases ADD COLUMN status TEXT DEFAULT 'ongoing'");
         }
       } else if (db && db.transaction) {
         db.transaction((tx) => {
@@ -93,23 +103,27 @@ export const initDB = async () => {
               category TEXT,
               barcode TEXT,
               imageUri TEXT,
+              purchaseId TEXT,
               createdAt INTEGER,
               updatedAt INTEGER,
               synced INTEGER DEFAULT 0,
               ebayItemId TEXT,
               ebaySku TEXT,
-              shippingStatus TEXT DEFAULT 'pending'
+              shippingStatus TEXT DEFAULT 'pending',
+              FOREIGN KEY(boxId) REFERENCES boxes(id),
+              FOREIGN KEY(purchaseId) REFERENCES purchases(id)
             );`
           );
           tx.executeSql(
             `CREATE TABLE IF NOT EXISTS purchases (
               id TEXT PRIMARY KEY NOT NULL,
-              itemId TEXT NOT NULL,
+              itemId TEXT,
               cost REAL NOT NULL DEFAULT 0,
               quantity INTEGER DEFAULT 1,
               purchaseDate INTEGER,
               supplier TEXT,
               notes TEXT,
+              status TEXT DEFAULT 'ongoing',
               createdAt INTEGER,
               FOREIGN KEY(itemId) REFERENCES items(id)
             );`
@@ -128,6 +142,16 @@ export const initDB = async () => {
             }
             if (!names.includes('shippingStatus')) {
               tx.executeSql("ALTER TABLE items ADD COLUMN shippingStatus TEXT DEFAULT 'pending'");
+            }
+            if (!names.includes('purchaseId')) {
+              tx.executeSql('ALTER TABLE items ADD COLUMN purchaseId TEXT');
+            }
+          });
+          tx.executeSql('PRAGMA table_info(purchases)', [], (_, { rows }) => {
+            const pnames = [];
+            for (let i = 0; i < rows.length; i++) pnames.push(rows.item(i).name);
+            if (!pnames.includes('status')) {
+              tx.executeSql("ALTER TABLE purchases ADD COLUMN status TEXT DEFAULT 'ongoing'");
             }
           });
         });
