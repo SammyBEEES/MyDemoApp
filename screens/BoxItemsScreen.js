@@ -1,5 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Image, Button, StyleSheet, Modal, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  Image,
+  Button,
+  Pressable,
+  StyleSheet,
+  Modal,
+  Alert,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { initDB } from '../db/init';
 import { getItemsByBoxId, getAllBoxes, moveAllItemsFromBox, deleteBox } from '../services/inventoryRepo';
@@ -34,8 +45,17 @@ export default function BoxItemsScreen({ route, navigation }) {
   useEffect(() => {
     const unsub = navigation.addListener('focus', load);
     load();
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable onPress={confirmDeleteBox} hitSlop={16}>
+          <Text style={{ color: '#b00020', fontSize: 16, fontWeight: '600' }}>
+            Delete Box
+          </Text>
+        </Pressable>
+      ),
+    });
     return unsub;
-  }, [navigation]);
+  }, [navigation, box, confirmDeleteBox]);
 
   const moveAll = async (targetBox) => {
     try {
@@ -105,15 +125,6 @@ export default function BoxItemsScreen({ route, navigation }) {
             </View>
           </View>
         ) : null}
-        <View style={styles.actions}>
-          <View style={styles.actionButton}>
-            <Button
-              title="Delete Box"
-              onPress={confirmDeleteBox}
-              color="#b00020"
-            />
-          </View>
-        </View>
       </View>
       {loading ? (
         <Text style={styles.message}>Loading...</Text>
