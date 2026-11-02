@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Button, TextInput, Modal, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { initDB } from '../db/init';
-import { getAllBoxes, addBox, deleteBox as deleteBoxRecord } from '../services/inventoryRepo';
+import { getAllBoxes, addBox } from '../services/inventoryRepo';
 import { importEbayListingsToUnsorted } from '../services/ebayImport';
 import { useTheme } from '../theme/ThemeProvider';
 
@@ -16,7 +16,6 @@ export default function BoxesScreen({ navigation }) {
   const [name, setName] = useState('');
   const [desc, setDesc] = useState('');
   const [importing, setImporting] = useState(false);
-  const [deleteBoxId, setDeleteBoxId] = useState(null);
 
   const load = async () => {
     try {
@@ -94,7 +93,6 @@ export default function BoxesScreen({ navigation }) {
         <Text style={styles.name}>{item.name}</Text>
         {item.description ? <Text style={styles.meta}>{item.description}</Text> : null}
       </View>
-      <Button title="Delete" onPress={() => deleteBox(item.id)} color="#b00020" />
     </TouchableOpacity>
   );
 
@@ -139,19 +137,6 @@ export default function BoxesScreen({ navigation }) {
         />
       )}
 
-      {deleteBoxId ? (
-        <View style={styles.modalBg}>
-          <View style={styles.modal}>
-            <Text style={styles.title}>Delete Box?</text>
-            <Text style={styles.message}>Items in this box will be moved to "No Box".</Text>
-            <View style={styles.row}>
-              <Button title="Cancel" onPress={() => setDeleteBoxId(null)} />
-              <Button title="Delete" onPress={confirmDeleteBox} color="#b00020" />
-            </View>
-          </View>
-        </View>
-      ) : null}
-
       <Modal visible={modalVisible} animationType="slide" transparent onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalBg}>
           <View style={styles.modal}>
@@ -189,9 +174,6 @@ const createStyles = (colors) =>
     actionButton: { flex: 1 },
     list: { paddingHorizontal: 16, paddingTop: 12 },
     item: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
       backgroundColor: colors.card,
       padding: 14,
       borderWidth: 1,
@@ -205,9 +187,6 @@ const createStyles = (colors) =>
       shadowRadius: 6,
       shadowOffset: { width: 0, height: 3 },
       elevation: 3,
-    },
-    itemContent: {
-      flex: 1,
     },
     name: { fontSize: 18, fontWeight: '700', color: colors.text, marginBottom: 2 },
     meta: { color: colors.muted, fontSize: 14 },

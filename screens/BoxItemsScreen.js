@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Image, Button, StyleSheet, Modal, Alert } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { initDB } from '../db/init';
-import { getItemsByBoxId, getAllBoxes, moveAllItemsFromBox } from '../services/inventoryRepo';
+import { getItemsByBoxId, getAllBoxes, moveAllItemsFromBox, deleteBox } from '../services/inventoryRepo';
 import { useTheme } from '../theme/ThemeProvider';
 
 export default function BoxItemsScreen({ route, navigation }) {
@@ -49,6 +49,26 @@ export default function BoxItemsScreen({ route, navigation }) {
     }
   };
 
+  const confirmDeleteBox = async () => {
+    if (!box?.id) return;
+    const confirmed = await Alert.alert(
+      'Delete Box?',
+      `Items in "${box.name}" will be moved to no box.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            await deleteBox(box.id);
+            Alert.alert('Deleted', 'Box deleted.');
+            navigation.goBack();
+          } catch (e) {
+            Alert.alert('Error', 'Failed to delete box');
+          }
+        } },
+      ]
+    );
+  };
+
   const renderItem = ({ item }) => (
     <TouchableOpacity
       style={styles.item}
@@ -85,6 +105,15 @@ export default function BoxItemsScreen({ route, navigation }) {
             </View>
           </View>
         ) : null}
+        <View style={styles.actions}>
+          <View style={styles.actionButton}>
+            <Button
+              title="Delete Box"
+              onPress={confirmDeleteBox}
+              color="#b00020"
+            />
+          </View>
+        </View>
       </View>
       {loading ? (
         <Text style={styles.message}>Loading...</Text>
