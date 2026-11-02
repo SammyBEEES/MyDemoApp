@@ -168,9 +168,10 @@ app.get('/api/ebay/orders', async (req, res) => {
     const orders = [];
     let pageNumber = 1;
     let hasMoreOrders = true;
-    const requestTime = Date.now();
-    const createTimeTo = new Date(requestTime - 2 * 60 * 1000).toISOString();
-    const createTimeFrom = new Date(requestTime - 90 * 24 * 60 * 60 * 1000).toISOString();
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const createTimeTo = now.toISOString();
+    const createTimeFrom = new Date(currentYear, 0, 1).toISOString();
 
     while (hasMoreOrders) {
       const xml = `<?xml version="1.0" encoding="utf-8"?>
